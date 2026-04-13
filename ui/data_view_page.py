@@ -22,7 +22,18 @@ from PyQt6.QtWidgets import (
 )
 
 from core.platforms import platform_label
-
+from ui.theme import (
+    SUCCESS,
+    TEAL,
+    TEXT_MUTED,
+    VIOLET,
+    accent_button_style,
+    page_background_style,
+    page_title_style,
+    secondary_button_style,
+    selector_style,
+    table_style,
+)
 
 TEXT_TITLE = "\u6570\u636e\u89c6\u56fe"
 TEXT_FILTER = "\u9009\u62e9\u535a\u4e3b\uff1a"
@@ -74,80 +85,6 @@ TEXT_DOWNLOAD_FAILED_BODY = (
 )
 
 
-TABLE_STYLE = """
-QTableWidget {
-    background-color: #1a1a2e;
-    border: 1px solid #2d3748;
-    border-radius: 8px;
-    color: #e2e8f0;
-    gridline-color: #2d3748;
-    font-size: 13px;
-}
-QTableWidget::item {
-    padding: 8px 12px;
-    border-bottom: 1px solid #2d3748;
-}
-QTableWidget::item:selected {
-    background-color: #2d3748;
-}
-QHeaderView::section {
-    background-color: #16213e;
-    color: #a0aec0;
-    padding: 10px 12px;
-    border: none;
-    border-bottom: 1px solid #2d3748;
-    font-size: 12px;
-    font-weight: 600;
-}
-"""
-
-SELECTOR_STYLE = """
-QToolButton {
-    background-color: #2d3748;
-    color: #e2e8f0;
-    border: 1px solid #4a5568;
-    border-radius: 6px;
-    padding: 8px 12px;
-    font-size: 13px;
-    min-width: 240px;
-    text-align: left;
-}
-QToolButton::menu-indicator {
-    subcontrol-origin: padding;
-    subcontrol-position: right center;
-    right: 10px;
-}
-QMenu {
-    background-color: #2d3748;
-    color: #e2e8f0;
-    border: 1px solid #4a5568;
-    padding: 6px;
-}
-QMenu::item {
-    padding: 8px 28px 8px 12px;
-    border-radius: 4px;
-}
-QMenu::item:selected {
-    background-color: #4a5568;
-}
-"""
-
-SECONDARY_BTN_STYLE = """
-QPushButton {
-    background-color: #1f2937;
-    color: #dbe7ff;
-    border: 1px solid #334155;
-    border-radius: 8px;
-    padding: 8px 14px;
-    font-size: 12px;
-    font-weight: 600;
-}
-QPushButton:hover {
-    background-color: #273449;
-}
-"""
-
-
 class DataViewPage(QWidget):
     """Data view page."""
 
@@ -172,14 +109,14 @@ class DataViewPage(QWidget):
         return self._metrics_helper
 
     def _build_ui(self):
-        self.setStyleSheet("background-color: #0f0f1a;")
+        self.setStyleSheet(page_background_style())
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
 
         title = QLabel(TEXT_TITLE)
-        title.setStyleSheet("color: #e2e8f0; font-size: 22px; font-weight: bold;")
+        title.setStyleSheet(page_title_style())
         layout.addWidget(title)
 
         filter_row = QHBoxLayout()
@@ -188,42 +125,29 @@ class DataViewPage(QWidget):
         filter_row.addWidget(filter_label)
 
         self.influencer_menu = QMenu(self)
-        self.influencer_menu.setStyleSheet(SELECTOR_STYLE)
+        self.influencer_menu.setStyleSheet(selector_style())
 
         self.influencer_selector = QToolButton()
         self.influencer_selector.setText(TEXT_SELECT_PLACEHOLDER)
         self.influencer_selector.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.influencer_selector.setMenu(self.influencer_menu)
-        self.influencer_selector.setStyleSheet(SELECTOR_STYLE)
+        self.influencer_selector.setStyleSheet(selector_style())
         filter_row.addWidget(self.influencer_selector)
 
         select_all_btn = QPushButton(TEXT_SELECT_ALL)
-        select_all_btn.setStyleSheet(SECONDARY_BTN_STYLE)
+        select_all_btn.setStyleSheet(secondary_button_style())
         select_all_btn.clicked.connect(self._select_all_influencers)
         filter_row.addWidget(select_all_btn)
 
         clear_btn = QPushButton(TEXT_CLEAR)
-        clear_btn.setStyleSheet(SECONDARY_BTN_STYLE)
+        clear_btn.setStyleSheet(secondary_button_style())
         clear_btn.clicked.connect(self._clear_selected_influencers)
         filter_row.addWidget(clear_btn)
 
         filter_row.addStretch()
 
         analyze_all_btn = QPushButton(TEXT_BATCH_ANALYZE)
-        analyze_all_btn.setStyleSheet(
-            """
-            QPushButton {
-                background-color: #6b46c1;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 10px 16px;
-                font-size: 13px;
-                font-weight: 600;
-            }
-            QPushButton:hover { background-color: #553c9a; }
-            """
-        )
+        analyze_all_btn.setStyleSheet(accent_button_style())
         analyze_all_btn.clicked.connect(self._analyze_batch)
         filter_row.addWidget(analyze_all_btn)
         layout.addLayout(filter_row)
@@ -240,13 +164,13 @@ class DataViewPage(QWidget):
             lbl = QLabel(label)
             lbl.setStyleSheet(
                 f"""
-                background-color: #1a1a2e;
+                background-color: #121c2b;
                 color: {color};
-                border: 1px solid #2d3748;
-                border-radius: 8px;
+                border: 1px solid #263a56;
+                border-radius: 12px;
                 padding: 10px 16px;
                 font-size: 13px;
-                font-weight: 600;
+                font-weight: 700;
                 """
             )
             setattr(self, attr, lbl)
@@ -255,7 +179,7 @@ class DataViewPage(QWidget):
         layout.addLayout(self.stats_row)
 
         self.table = QTableWidget()
-        self.table.setStyleSheet(TABLE_STYLE + "QTableWidget { alternate-background-color: #16213e; }")
+        self.table.setStyleSheet(table_style())
         self.table.setColumnCount(len(TEXT_HEADERS))
         self.table.setHorizontalHeaderLabels(TEXT_HEADERS)
         header = self.table.horizontalHeader()
@@ -439,7 +363,7 @@ class DataViewPage(QWidget):
             engage_rate = metrics["engagement_rate"]
             engage_item = QTableWidgetItem(f"{engage_rate:.2f}%")
             if engage_rate >= 10:
-                engage_item.setForeground(QColor("#68d391"))
+                engage_item.setForeground(QColor(SUCCESS))
             elif engage_rate >= 5:
                 engage_item.setForeground(QColor("#f6ad55"))
             else:
@@ -456,16 +380,17 @@ class DataViewPage(QWidget):
 
             analyze_btn = QPushButton(TEXT_AI_ANALYZE)
             analyze_btn.setStyleSheet(
-                """
-                QPushButton {
-                    background-color: #6b46c1;
+                f"""
+                QPushButton {{
+                    background-color: {VIOLET};
                     color: white;
                     border: none;
-                    border-radius: 4px;
-                    padding: 4px 8px;
+                    border-radius: 8px;
+                    padding: 6px 10px;
                     font-size: 11px;
-                }
-                QPushButton:hover { background-color: #553c9a; }
+                    font-weight: 700;
+                }}
+                QPushButton:hover {{ background-color: #92a0ff; }}
                 """
             )
             analyze_btn.clicked.connect(lambda _, vid=video: self._analyze_single(vid))
@@ -474,16 +399,17 @@ class DataViewPage(QWidget):
             if video.get("video_url"):
                 dl_btn = QPushButton(TEXT_DOWNLOAD)
                 dl_btn.setStyleSheet(
-                    """
-                    QPushButton {
-                        background-color: #2d6a4f;
+                    f"""
+                    QPushButton {{
+                        background-color: {TEAL};
                         color: white;
                         border: none;
-                        border-radius: 4px;
-                        padding: 4px 8px;
+                        border-radius: 8px;
+                        padding: 6px 10px;
                         font-size: 11px;
-                    }
-                    QPushButton:hover { background-color: #1b4332; }
+                        font-weight: 700;
+                    }}
+                    QPushButton:hover {{ background-color: #63d6c8; }}
                     """
                 )
                 dl_btn.clicked.connect(lambda _, vid=video: self._download_video(vid))

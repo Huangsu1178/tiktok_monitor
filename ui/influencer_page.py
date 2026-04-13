@@ -26,66 +26,20 @@ from PyQt6.QtWidgets import (
 )
 
 from core.platforms import format_account_identity, infer_platform_from_input, normalize_influencer_input, platform_label
-
-
-TABLE_STYLE = """
-QTableWidget {
-    background-color: #1a1a2e;
-    border: 1px solid #2d3748;
-    border-radius: 8px;
-    color: #e2e8f0;
-    gridline-color: #2d3748;
-    font-size: 13px;
-}
-QTableWidget::item { padding: 10px 12px; border-bottom: 1px solid #2d3748; }
-QTableWidget::item:selected { background-color: #2d3748; }
-QHeaderView::section {
-    background-color: #16213e;
-    color: #a0aec0;
-    padding: 10px 12px;
-    border: none;
-    border-bottom: 1px solid #2d3748;
-    font-size: 12px;
-    font-weight: 600;
-}
-"""
-
-BTN_PRIMARY = """
-QPushButton {
-    background-color: #e53e3e;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 20px;
-    font-size: 14px;
-    font-weight: 600;
-}
-QPushButton:hover { background-color: #c53030; }
-"""
-
-BTN_SECONDARY = """
-QPushButton {
-    background-color: #2d3748;
-    color: #e2e8f0;
-    border: none;
-    border-radius: 6px;
-    padding: 6px 12px;
-    font-size: 12px;
-}
-QPushButton:hover { background-color: #4a5568; }
-"""
-
-BTN_DANGER = """
-QPushButton {
-    background-color: transparent;
-    color: #fc8181;
-    border: 1px solid #fc8181;
-    border-radius: 6px;
-    padding: 6px 12px;
-    font-size: 12px;
-}
-QPushButton:hover { background-color: #742a2a; }
-"""
+from ui.theme import (
+    DANGER,
+    SUCCESS,
+    TEXT_MUTED,
+    TEXT_PRIMARY,
+    body_text_style,
+    danger_button_style,
+    input_style,
+    page_background_style,
+    page_title_style,
+    primary_button_style,
+    secondary_button_style,
+    table_style,
+)
 
 
 class AddInfluencerDialog(QDialog):
@@ -95,27 +49,20 @@ class AddInfluencerDialog(QDialog):
         self.setModal(True)
         self.setMinimumWidth(460)
         self.setStyleSheet(
-            """
-            QDialog { background-color: #1a1a2e; color: #e2e8f0; }
-            QLabel { color: #e2e8f0; font-size: 14px; }
-            QLineEdit, QComboBox {
-                background-color: #2d3748;
-                color: #e2e8f0;
-                border: 1px solid #4a5568;
-                border-radius: 6px;
-                padding: 8px 12px;
-                font-size: 14px;
-            }
-            QLineEdit:focus, QComboBox:focus { border-color: #e53e3e; }
-            QDialogButtonBox QPushButton {
-                background-color: #e53e3e;
+            f"""
+            QDialog {{ background-color: #121c2b; color: {TEXT_PRIMARY}; }}
+            QLabel {{ color: {TEXT_PRIMARY}; font-size: 14px; }}
+            {input_style(180)}
+            QDialogButtonBox QPushButton {{
+                background-color: #ff7a59;
                 color: white;
                 border: none;
-                border-radius: 6px;
-                padding: 8px 20px;
+                border-radius: 10px;
+                padding: 8px 18px;
                 font-size: 13px;
-            }
-            QDialogButtonBox QPushButton:hover { background-color: #c53030; }
+                font-weight: 700;
+            }}
+            QDialogButtonBox QPushButton:hover {{ background-color: #ff8b6d; }}
             """
         )
 
@@ -129,7 +76,7 @@ class AddInfluencerDialog(QDialog):
 
         hint = QLabel("TikTok 可输入用户名或主页链接。抖音请使用主页链接或分享链接添加，不要只填昵称。")
         hint.setWordWrap(True)
-        hint.setStyleSheet("color: #a0aec0; font-size: 12px;")
+        hint.setStyleSheet(body_text_style())
         layout.addWidget(hint)
 
         form = QFormLayout()
@@ -152,9 +99,7 @@ class AddInfluencerDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Ok).setText("确认添加")
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("取消")
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setStyleSheet(
-            "QPushButton { background-color: #2d3748; color: #e2e8f0; border: none; border-radius: 6px; padding: 8px 20px; }"
-        )
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setStyleSheet(secondary_button_style())
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -181,35 +126,35 @@ class InfluencerPage(QWidget):
         self.refresh()
 
     def _build_ui(self):
-        self.setStyleSheet("background-color: #0f0f1a;")
+        self.setStyleSheet(page_background_style())
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
 
         title_row = QHBoxLayout()
         title = QLabel("账号管理")
-        title.setStyleSheet("color: #e2e8f0; font-size: 22px; font-weight: bold;")
+        title.setStyleSheet(page_title_style())
         title_row.addWidget(title)
         title_row.addStretch()
 
         add_btn = QPushButton("+ 添加账号")
-        add_btn.setStyleSheet(BTN_PRIMARY)
+        add_btn.setStyleSheet(primary_button_style())
         add_btn.clicked.connect(self._add_influencer)
         title_row.addWidget(add_btn)
 
         fetch_all_btn = QPushButton("立即抓取全部")
-        fetch_all_btn.setStyleSheet(BTN_SECONDARY)
+        fetch_all_btn.setStyleSheet(secondary_button_style())
         fetch_all_btn.clicked.connect(self._fetch_all)
         title_row.addWidget(fetch_all_btn)
         layout.addLayout(title_row)
 
         hint = QLabel("统一管理 TikTok 和抖音账号。添加后可手动抓取，也可配合设置页里的自动抓取一起使用。")
-        hint.setStyleSheet("color: #718096; font-size: 13px;")
+        hint.setStyleSheet(body_text_style())
         hint.setWordWrap(True)
         layout.addWidget(hint)
 
         self.table = QTableWidget()
-        self.table.setStyleSheet(TABLE_STYLE + "QTableWidget { alternate-background-color: #16213e; }")
+        self.table.setStyleSheet(table_style())
         self.table.setColumnCount(10)
         self.table.setHorizontalHeaderLabels(
             ["平台", "账号", "备注", "粉丝数", "视频数", "最佳表现", "监控状态", "上次抓取", "操作", ""]
@@ -258,12 +203,12 @@ class InfluencerPage(QWidget):
 
             best_play = best_performances.get(influencer["id"], 0)
             best_item = QTableWidgetItem(self._format_number(best_play) if best_play else "暂无数据")
-            best_item.setForeground(QColor("#f6ad55" if best_play >= 1_000_000 else "#68d391" if best_play >= 100_000 else "#a0aec0"))
+            best_item.setForeground(QColor("#f2b265" if best_play >= 1_000_000 else SUCCESS if best_play >= 100_000 else TEXT_MUTED))
             self.table.setItem(row, 5, best_item)
 
             is_active = bool(influencer.get("is_active", 1))
             status_item = QTableWidgetItem("监控中" if is_active else "已暂停")
-            status_item.setForeground(QColor("#68d391") if is_active else QColor("#a0aec0"))
+            status_item.setForeground(QColor(SUCCESS) if is_active else QColor(TEXT_MUTED))
             self.table.setItem(row, 6, status_item)
             self.table.setItem(row, 7, QTableWidgetItem(influencer.get("last_fetched_at") or "从未抓取"))
 
@@ -273,18 +218,18 @@ class InfluencerPage(QWidget):
             btn_layout.setSpacing(6)
 
             fetch_btn = QPushButton("立即抓取")
-            fetch_btn.setStyleSheet(BTN_SECONDARY)
+            fetch_btn.setStyleSheet(secondary_button_style())
             fetch_btn.clicked.connect(lambda _, inf=influencer: self._fetch_single(inf))
             btn_layout.addWidget(fetch_btn)
 
             view_btn = QPushButton("查看数据")
-            view_btn.setStyleSheet(BTN_SECONDARY)
+            view_btn.setStyleSheet(secondary_button_style())
             view_btn.clicked.connect(lambda _, inf=influencer: self._view_data(inf))
             btn_layout.addWidget(view_btn)
             self.table.setCellWidget(row, 8, btn_widget)
 
             del_btn = QPushButton("删除")
-            del_btn.setStyleSheet(BTN_DANGER)
+            del_btn.setStyleSheet(danger_button_style())
             del_btn.clicked.connect(lambda _, inf=influencer: self._delete_influencer(inf))
             self.table.setCellWidget(row, 9, del_btn)
             self.table.setRowHeight(row, 52)

@@ -23,43 +23,50 @@ from PyQt6.QtWidgets import (
 )
 
 from core.platforms import platform_label
+from ui.theme import (
+    ACCENT,
+    ACCENT_HOVER,
+    BG_PANEL,
+    BORDER,
+    SUCCESS,
+    TEAL,
+    TEXT_PRIMARY,
+    TEXT_SECONDARY,
+    VIOLET,
+    accent_button_style,
+    card_style,
+    input_style,
+    page_background_style,
+    secondary_button_style,
+)
 
 
-PAGE_STYLE = """
-QWidget {
-    background-color: #0b1220;
-    color: #e5eefc;
-}
-QScrollArea {
+PAGE_STYLE = f"""
+QWidget {{
+    {page_background_style()}
+}}
+QScrollArea {{
     border: none;
     background: transparent;
-}
-QComboBox {
-    background-color: #162033;
-    color: #ecf4ff;
-    border: 1px solid #2d405f;
-    border-radius: 10px;
-    padding: 10px 14px;
-    min-width: 220px;
-    font-size: 13px;
-}
-QComboBox::drop-down {
+}}
+{input_style(220)}
+QComboBox::drop-down {{
     border: none;
     width: 26px;
-}
-QComboBox QAbstractItemView {
-    background-color: #162033;
-    color: #ecf4ff;
-    border: 1px solid #2d405f;
-    selection-background-color: #2e4a77;
-}
-QPushButton {
+}}
+QComboBox QAbstractItemView {{
+    background-color: {BG_PANEL};
+    color: {TEXT_PRIMARY};
+    border: 1px solid {BORDER};
+    selection-background-color: #22324a;
+}}
+QPushButton {{
     border: none;
     border-radius: 10px;
     padding: 10px 18px;
     font-size: 13px;
-    font-weight: 600;
-}
+    font-weight: 700;
+}}
 """
 
 
@@ -91,15 +98,7 @@ class AnalysisWorker(QThread):
 class MetricChip(QFrame):
     def __init__(self, label: str, value: str, accent: str):
         super().__init__()
-        self.setStyleSheet(
-            f"""
-            QFrame {{
-                background-color: #10192b;
-                border: 1px solid #24324b;
-                border-radius: 14px;
-            }}
-            """
-        )
+        self.setStyleSheet(card_style(accent))
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 12, 14, 12)
         layout.setSpacing(4)
@@ -116,15 +115,7 @@ class MetricChip(QFrame):
 class AnalysisCard(QFrame):
     def __init__(self, title: str, content: str, accent: str):
         super().__init__()
-        self.setStyleSheet(
-            f"""
-            QFrame {{
-                background-color: #10192b;
-                border: 1px solid #22314b;
-                border-radius: 18px;
-            }}
-            """
-        )
+        self.setStyleSheet(card_style(accent))
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(8)
@@ -143,12 +134,12 @@ class EmptyState(QFrame):
     def __init__(self, title: str, desc: str):
         super().__init__()
         self.setStyleSheet(
-            """
-            QFrame {
-                background-color: #10192b;
-                border: 1px dashed #304566;
+            f"""
+            QFrame {{
+                background-color: {BG_PANEL};
+                border: 1px dashed {BORDER};
                 border-radius: 18px;
-            }
+            }}
             """
         )
         layout = QVBoxLayout(self)
@@ -194,8 +185,8 @@ class AIReportPage(QWidget):
             """
             QFrame {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 #13203a, stop:0.45 #16284a, stop:1 #203a64);
-                border: 1px solid #2d436d;
+                    stop:0 #122033, stop:0.45 #18283d, stop:1 #223752);
+                border: 1px solid #355071;
                 border-radius: 24px;
             }
             """
@@ -238,7 +229,7 @@ class AIReportPage(QWidget):
         selectors.addWidget(self.video_combo)
 
         refresh_btn = QPushButton("刷新数据")
-        refresh_btn.setStyleSheet("QPushButton { background-color: #294166; color: white; } QPushButton:hover { background-color: #35517d; }")
+        refresh_btn.setStyleSheet(secondary_button_style())
         refresh_btn.clicked.connect(self._handle_refresh_clicked)
         selectors.addWidget(refresh_btn)
         selectors.addStretch()
@@ -248,12 +239,14 @@ class AIReportPage(QWidget):
         actions.setSpacing(12)
 
         self.single_btn = QPushButton("单视频分析")
-        self.single_btn.setStyleSheet("QPushButton { background-color: #ef6b57; color: white; } QPushButton:hover { background-color: #ff7b65; }")
+        self.single_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {ACCENT}; color: white; }} QPushButton:hover {{ background-color: {ACCENT_HOVER}; }}"
+        )
         self.single_btn.clicked.connect(self._run_selected_single_analysis)
         actions.addWidget(self.single_btn)
 
         self.batch_btn = QPushButton("批量规律分析")
-        self.batch_btn.setStyleSheet("QPushButton { background-color: #4d63ff; color: white; } QPushButton:hover { background-color: #6176ff; }")
+        self.batch_btn.setStyleSheet(accent_button_style())
         self.batch_btn.clicked.connect(self._run_selected_batch_analysis)
         actions.addWidget(self.batch_btn)
 
@@ -329,8 +322,8 @@ class AIReportPage(QWidget):
         self.single_scroll.setVisible(single_active)
         self.batch_scroll.setVisible(not single_active)
 
-        active_style = "QPushButton { background-color: #e6eefc; color: #0d1730; }"
-        idle_style = "QPushButton { background-color: #111b2d; color: #9fb6d7; border: 1px solid #263a59; } QPushButton:hover { background-color: #17243a; }"
+        active_style = f"QPushButton {{ background-color: {TEXT_PRIMARY}; color: #0d1730; }}"
+        idle_style = f"QPushButton {{ background-color: {BG_PANEL}; color: {TEXT_SECONDARY}; border: 1px solid {BORDER}; }} QPushButton:hover {{ background-color: #17243a; }}"
         self.single_tab_btn.setStyleSheet(active_style if single_active else idle_style)
         self.batch_tab_btn.setStyleSheet(active_style if not single_active else idle_style)
 
@@ -641,7 +634,7 @@ class AIReportPage(QWidget):
         note = QLabel("AI 正在生成结构化报告，界面会保持响应，完成后自动展示结果。")
         note.setAlignment(Qt.AlignmentFlag.AlignCenter)
         note.setWordWrap(True)
-        note.setStyleSheet("color: #6fdbb0; font-size: 13px; padding-top: 12px;")
+        note.setStyleSheet(f"color: {SUCCESS}; font-size: 13px; padding-top: 12px;")
         panel.layout().addWidget(note)
 
         if mode == "single":
@@ -693,15 +686,7 @@ class AIReportPage(QWidget):
         metrics_frame = self._wrap_metric_row(metrics)
 
         hook_banner = QFrame()
-        hook_banner.setStyleSheet(
-            """
-            QFrame {
-                background-color: #111d31;
-                border: 1px solid #314769;
-                border-radius: 18px;
-            }
-            """
-        )
+        hook_banner.setStyleSheet(card_style(VIOLET))
         hook_layout = QVBoxLayout(hook_banner)
         hook_layout.setContentsMargins(20, 18, 20, 18)
         hook_layout.setSpacing(8)
@@ -755,8 +740,8 @@ class AIReportPage(QWidget):
             """
             QFrame {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 #141f36, stop:1 #2b2f6d);
-                border: 1px solid #586eff;
+                    stop:0 #142238, stop:1 #203752);
+                border: 1px solid #4d6b93;
                 border-radius: 20px;
             }
             """
@@ -795,15 +780,7 @@ class AIReportPage(QWidget):
 
     def _build_report_hero(self, title: str, desc: str, badge: str, accent: str, extra_text: str = ""):
         frame = QFrame()
-        frame.setStyleSheet(
-            """
-            QFrame {
-                background-color: #10192b;
-                border: 1px solid #243452;
-                border-radius: 22px;
-            }
-            """
-        )
+        frame.setStyleSheet(card_style(accent))
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(22, 20, 22, 20)
         layout.setSpacing(10)

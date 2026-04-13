@@ -13,60 +13,28 @@ from PyQt6.QtWidgets import (
     QMessageBox, QScrollArea, QFrame
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
 
 from config import DEFAULT_AI_MODEL
+from ui.theme import (
+    SUCCESS,
+    TEXT_PRIMARY,
+    TEXT_SECONDARY,
+    body_text_style,
+    group_style,
+    input_style,
+    page_background_style,
+    page_title_style,
+    primary_button_style,
+    secondary_button_style,
+    subtle_text_style,
+)
 
 
-INPUT_STYLE = """
-QLineEdit, QSpinBox, QDoubleSpinBox {
-    background-color: #2d3748;
-    color: #e2e8f0;
-    border: 1px solid #4a5568;
-    border-radius: 6px;
-    padding: 8px 12px;
-    font-size: 13px;
-    min-width: 300px;
-}
-QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus {
-    border-color: #e53e3e;
-}
-"""
-
-GROUP_STYLE = """
-QGroupBox {
-    color: #a0aec0;
-    font-size: 14px;
-    font-weight: 600;
-    border: 1px solid #2d3748;
-    border-radius: 10px;
-    margin-top: 12px;
-    padding-top: 8px;
-    background-color: #1a1a2e;
-}
-QGroupBox::title {
-    subcontrol-origin: margin;
-    left: 16px;
-    padding: 0 8px;
-    color: #a0aec0;
-}
-"""
-
-SAVE_BTN_STYLE = """
-QPushButton {
-    background-color: #e53e3e;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 24px;
-    font-size: 14px;
-    font-weight: 600;
-}
-QPushButton:hover { background-color: #c53030; }
-"""
-
-LABEL_STYLE = "color: #e2e8f0; font-size: 13px;"
-HINT_STYLE = "color: #718096; font-size: 12px;"
+INPUT_STYLE = input_style(300)
+GROUP_STYLE = group_style()
+SAVE_BTN_STYLE = primary_button_style()
+LABEL_STYLE = f"color: {TEXT_PRIMARY}; font-size: 13px; font-weight: 600;"
+HINT_STYLE = subtle_text_style()
 
 
 class SettingsPage(QWidget):
@@ -79,25 +47,25 @@ class SettingsPage(QWidget):
         self._load_settings()
 
     def _build_ui(self):
-        self.setStyleSheet("background-color: #0f0f1a;")
+        self.setStyleSheet(page_background_style())
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: none; background-color: #0f0f1a; }")
+        scroll.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
 
         content = QWidget()
-        content.setStyleSheet("background-color: #0f0f1a;")
+        content.setStyleSheet(page_background_style())
         main_layout = QVBoxLayout(content)
         main_layout.setContentsMargins(24, 24, 24, 24)
         main_layout.setSpacing(20)
 
         # 页面标题
-        title = QLabel("⚙️ 系统设置")
-        title.setStyleSheet("color: #e2e8f0; font-size: 22px; font-weight: bold;")
+        title = QLabel("系统设置")
+        title.setStyleSheet(page_title_style())
         main_layout.addWidget(title)
 
         # ---- AI配置 ----
-        ai_group = QGroupBox("🤖 AI分析配置")
+        ai_group = QGroupBox("AI 分析配置")
         ai_group.setStyleSheet(GROUP_STYLE)
         ai_form = QFormLayout(ai_group)
         ai_form.setContentsMargins(16, 20, 16, 16)
@@ -111,9 +79,9 @@ class SettingsPage(QWidget):
 
         api_key_row = QHBoxLayout()
         api_key_row.addWidget(self.api_key_input)
-        show_key_btn = QPushButton("👁")
+        show_key_btn = QPushButton("显示")
         show_key_btn.setFixedSize(36, 36)
-        show_key_btn.setStyleSheet("QPushButton { background-color: #2d3748; color: #e2e8f0; border: none; border-radius: 6px; }")
+        show_key_btn.setStyleSheet(secondary_button_style())
         show_key_btn.clicked.connect(self._toggle_api_key_visibility)
         api_key_row.addWidget(show_key_btn)
 
@@ -155,7 +123,7 @@ class SettingsPage(QWidget):
         main_layout.addWidget(ai_group)
 
         # ---- 抓取配置 ----
-        fetch_group = QGroupBox("🔄 数据抓取配置")
+        fetch_group = QGroupBox("数据抓取配置")
         fetch_group.setStyleSheet(GROUP_STYLE)
         fetch_form = QFormLayout(fetch_group)
         fetch_form.setContentsMargins(16, 20, 16, 16)
@@ -187,7 +155,7 @@ class SettingsPage(QWidget):
         main_layout.addWidget(fetch_group)
 
         # ---- 下载配置 ----
-        dl_group = QGroupBox("📥 视频下载配置")
+        dl_group = QGroupBox("视频下载配置")
         dl_group.setStyleSheet(GROUP_STYLE)
         dl_form = QFormLayout(dl_group)
         dl_form.setContentsMargins(16, 20, 16, 16)
@@ -200,17 +168,7 @@ class SettingsPage(QWidget):
         dl_path_row.addWidget(self.download_path_input)
 
         browse_btn = QPushButton("浏览...")
-        browse_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #2d3748;
-                color: #e2e8f0;
-                border: none;
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-size: 13px;
-            }
-            QPushButton:hover { background-color: #4a5568; }
-        """)
+        browse_btn.setStyleSheet(secondary_button_style())
         browse_btn.clicked.connect(self._browse_download_path)
         dl_path_row.addWidget(browse_btn)
 
@@ -221,7 +179,7 @@ class SettingsPage(QWidget):
         main_layout.addWidget(dl_group)
 
         # ---- 网络配置 ----
-        net_group = QGroupBox("🌐 网络配置")
+        net_group = QGroupBox("网络配置")
         net_group.setStyleSheet(GROUP_STYLE)
         net_form = QFormLayout(net_group)
         net_form.setContentsMargins(16, 20, 16, 16)
@@ -245,7 +203,7 @@ class SettingsPage(QWidget):
         # 保存按钮
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        save_btn = QPushButton("💾 保存设置")
+        save_btn = QPushButton("保存设置")
         save_btn.setStyleSheet(SAVE_BTN_STYLE)
         save_btn.clicked.connect(self._save_settings)
         btn_row.addWidget(save_btn)
@@ -316,10 +274,10 @@ class SettingsPage(QWidget):
                 scheduler.start()
             scheduler.add_global_fetch_job(self.main_window.fetch_all_active, interval)
             self.main_window.status_label.setText(f"● 自动监控中 ({interval}h)")
-            self.main_window.status_label.setStyleSheet("color: #68d391; font-size: 12px; padding: 8px;")
+            self.main_window.status_label.setStyleSheet(f"color: {SUCCESS}; font-size: 12px; padding: 8px;")
         else:
             scheduler.remove_job("global_fetch")
             self.main_window.status_label.setText("● 就绪（手动模式）")
-            self.main_window.status_label.setStyleSheet("color: #a0aec0; font-size: 12px; padding: 8px;")
+            self.main_window.status_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 12px; padding: 8px;")
 
         QMessageBox.information(self, "保存成功", "设置已保存并生效！")

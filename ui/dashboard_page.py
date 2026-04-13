@@ -22,45 +22,24 @@ from PyQt6.QtWidgets import (
 )
 
 from core.platforms import platform_label
-
-
-CARD_STYLE = """
-QFrame#stat_card {
-    background-color: #1a1a2e;
-    border: 1px solid #2d3748;
-    border-radius: 12px;
-    padding: 16px;
-}
-"""
-
-TABLE_STYLE = """
-QTableWidget {
-    background-color: #1a1a2e;
-    border: 1px solid #2d3748;
-    border-radius: 8px;
-    color: #e2e8f0;
-    gridline-color: #2d3748;
-    font-size: 13px;
-}
-QTableWidget::item { padding: 8px 12px; border-bottom: 1px solid #2d3748; }
-QTableWidget::item:selected { background-color: #2d3748; }
-QHeaderView::section {
-    background-color: #16213e;
-    color: #a0aec0;
-    padding: 10px 12px;
-    border: none;
-    border-bottom: 1px solid #2d3748;
-    font-size: 12px;
-    font-weight: 600;
-}
-"""
+from ui.theme import (
+    ACCENT,
+    VIOLET,
+    body_text_style,
+    card_style,
+    page_background_style,
+    page_title_style,
+    secondary_button_style,
+    section_title_style,
+    table_style,
+)
 
 
 class StatCard(QFrame):
-    def __init__(self, icon: str, title: str, value: str, color: str = "#e53e3e"):
+    def __init__(self, icon: str, title: str, value: str, color: str = ACCENT):
         super().__init__()
         self.setObjectName("stat_card")
-        self.setStyleSheet(CARD_STYLE + f"QFrame#stat_card {{ border-left: 4px solid {color}; }}")
+        self.setStyleSheet(card_style(color))
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
@@ -68,7 +47,8 @@ class StatCard(QFrame):
 
         header = QHBoxLayout()
         icon_label = QLabel(icon)
-        icon_label.setFont(QFont("Arial", 20))
+        icon_label.setFont(QFont("Microsoft YaHei", 18, 700))
+        icon_label.setStyleSheet(f"color: {color};")
         header.addWidget(icon_label)
         header.addStretch()
 
@@ -93,26 +73,26 @@ class DashboardPage(QWidget):
         self.refresh()
 
     def _build_ui(self):
-        self.setStyleSheet("background-color: #0f0f1a;")
+        self.setStyleSheet(page_background_style())
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: none; background-color: #0f0f1a; }")
+        scroll.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
 
         content = QWidget()
-        content.setStyleSheet("background-color: #0f0f1a;")
+        content.setStyleSheet(page_background_style())
         main_layout = QVBoxLayout(content)
         main_layout.setContentsMargins(24, 24, 24, 24)
         main_layout.setSpacing(20)
 
         title_row = QHBoxLayout()
         title = QLabel("双平台监控仪表盘")
-        title.setStyleSheet("color: #e2e8f0; font-size: 22px; font-weight: bold;")
+        title.setStyleSheet(page_title_style())
         title_row.addWidget(title)
         title_row.addStretch()
 
         refresh_btn = QPushButton("刷新")
-        refresh_btn.setStyleSheet("QPushButton { background-color: #2d3748; color: #e2e8f0; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; } QPushButton:hover { background-color: #4a5568; }")
+        refresh_btn.setStyleSheet(secondary_button_style())
         refresh_btn.clicked.connect(self.refresh)
         title_row.addWidget(refresh_btn)
         main_layout.addLayout(title_row)
@@ -128,21 +108,21 @@ class DashboardPage(QWidget):
         main_layout.addLayout(cards_layout)
 
         self.platform_summary = QLabel("")
-        self.platform_summary.setStyleSheet("color: #a0aec0; font-size: 13px;")
+        self.platform_summary.setStyleSheet(body_text_style())
         main_layout.addWidget(self.platform_summary)
 
         skills_title = QLabel("AI 能力模块")
-        skills_title.setStyleSheet("color: #e2e8f0; font-size: 16px; font-weight: bold;")
+        skills_title.setStyleSheet(section_title_style())
         main_layout.addWidget(skills_title)
         self.skills_grid = QGridLayout()
         self.skills_grid.setSpacing(12)
         main_layout.addLayout(self.skills_grid)
 
         log_title = QLabel("最近抓取记录")
-        log_title.setStyleSheet("color: #e2e8f0; font-size: 16px; font-weight: bold;")
+        log_title.setStyleSheet(section_title_style())
         main_layout.addWidget(log_title)
         self.log_table = QTableWidget()
-        self.log_table.setStyleSheet(TABLE_STYLE + "QTableWidget { alternate-background-color: #16213e; }")
+        self.log_table.setStyleSheet(table_style())
         self.log_table.setColumnCount(7)
         self.log_table.setHorizontalHeaderLabels(["平台", "账号", "状态", "发现视频", "新增视频", "开始时间", "完成时间"])
         self.log_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -154,10 +134,10 @@ class DashboardPage(QWidget):
         main_layout.addWidget(self.log_table)
 
         hot_title = QLabel("热门视频")
-        hot_title.setStyleSheet("color: #e2e8f0; font-size: 16px; font-weight: bold;")
+        hot_title.setStyleSheet(section_title_style())
         main_layout.addWidget(hot_title)
         self.hot_table = QTableWidget()
-        self.hot_table.setStyleSheet(TABLE_STYLE)
+        self.hot_table.setStyleSheet(table_style(alternate=False))
         self.hot_table.setColumnCount(6)
         self.hot_table.setHorizontalHeaderLabels(["平台", "账号", "视频描述", "播放量", "点赞数", "发布时间"])
         self.hot_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -244,21 +224,19 @@ class DashboardPage(QWidget):
         registry = self.main_window.skill_registry
         skills = registry.list_skills()
         skill_icons = {
-            "ai_analysis": ("分析", "#e53e3e"),
+            "ai_analysis": ("分析", ACCENT),
             "hook_research": ("钩子", "#ed8936"),
             "format_research": ("格式", "#4299e1"),
             "reel_assembly": ("制作", "#48bb78"),
             "performance_tracker": ("追踪", "#9f7aea"),
-            "content_pipeline": ("流水线", "#f6ad55"),
+            "content_pipeline": ("流水线", VIOLET),
         }
 
         for idx, skill in enumerate(skills):
             icon, color = skill_icons.get(skill.skill_id, ("模块", "#a0aec0"))
             status = "已启用" if skill.requires_api else "本地可用"
             card = QFrame()
-            card.setStyleSheet(
-                f"QFrame {{ background-color: #1a1a2e; border: 1px solid #2d3748; border-left: 4px solid {color}; border-radius: 8px; padding: 12px; }}"
-            )
+            card.setStyleSheet(card_style(color))
             card_layout = QVBoxLayout(card)
             card_layout.setContentsMargins(12, 10, 12, 10)
             name_label = QLabel(f"{icon} {skill.name}")

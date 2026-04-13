@@ -25,8 +25,9 @@ def create_splash():
         """
         QLabel {
             background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                stop:0 #0f0f1a, stop:0.5 #1a1a2e, stop:1 #16213e);
-            border-radius: 12px;
+                stop:0 #0d1522, stop:0.52 #142033, stop:1 #213551);
+            border: 1px solid #34506f;
+            border-radius: 18px;
         }
         """
     )
@@ -34,10 +35,10 @@ def create_splash():
     splash_label.setText(
         """
         <div style='text-align:center; color:white; font-family:"Microsoft YaHei","Segoe UI",sans-serif;'>
-            <div style='font-size:44px; margin-bottom:12px;'>SV</div>
-            <div style='font-size:24px; font-weight:bold; color:#e2e8f0;'>Short Video Monitor</div>
-            <div style='font-size:14px; color:#718096; margin-top:8px;'>TikTok / 抖音双平台监控与分析</div>
-            <div style='font-size:12px; color:#4a5568; margin-top:24px;'>正在初始化...</div>
+            <div style='font-size:46px; margin-bottom:12px; color:#ff7a59; font-weight:800;'>SV</div>
+            <div style='font-size:24px; font-weight:bold; color:#edf3ff;'>Short Video Monitor</div>
+            <div style='font-size:14px; color:#aab9cf; margin-top:8px;'>TikTok / 抖音双平台监控与分析</div>
+            <div style='font-size:12px; color:#7f8ea7; margin-top:24px;'>正在初始化...</div>
         </div>
         """
     )
@@ -51,7 +52,7 @@ def main():
     app.setApplicationVersion("2.0.0")
     app.setOrganizationName("ManusAI")
 
-    font = QFont("Microsoft YaHei", 10) if sys.platform == "win32" else QFont("PingFang SC", 10)
+    font = QFont("Microsoft YaHei UI", 10) if sys.platform == "win32" else QFont("PingFang SC", 10)
     app.setFont(font)
 
     splash = create_splash()

@@ -25,40 +25,16 @@ from ui.dashboard_page import DashboardPage
 from ui.data_view_page import DataViewPage
 from ui.influencer_page import InfluencerPage
 from ui.settings_page import SettingsPage
-
-
-SIDEBAR_STYLE = """
-QWidget#sidebar {
-    background-color: #1a1a2e;
-    border-right: 1px solid #16213e;
-}
-"""
-
-NAV_BTN_STYLE = """
-QPushButton {
-    background-color: transparent;
-    color: #a0aec0;
-    border: none;
-    border-radius: 8px;
-    padding: 12px 16px;
-    text-align: left;
-    font-size: 14px;
-    font-weight: 500;
-}
-QPushButton:hover {
-    background-color: #2d3748;
-    color: #e2e8f0;
-}
-QPushButton:checked {
-    background-color: #e53e3e;
-    color: white;
-}
-"""
-
-MAIN_STYLE = """
-QMainWindow { background-color: #0f0f1a; }
-QWidget#main_content { background-color: #0f0f1a; }
-"""
+from ui.theme import (
+    ACCENT,
+    SUCCESS,
+    TEXT_MUTED,
+    TEXT_PRIMARY,
+    WARNING,
+    global_stylesheet,
+    nav_button_style,
+    sidebar_style,
+)
 
 
 class WorkerSignals(QObject):
@@ -116,23 +92,7 @@ class MainWindow(QMainWindow):
         self.scheduler.set_status_callback(self._on_scheduler_status)
 
     def _build_ui(self):
-        self.setStyleSheet(
-            MAIN_STYLE
-            + """
-            QScrollBar:vertical {
-                background: #1a1a2e;
-                width: 8px;
-                border-radius: 4px;
-            }
-            QScrollBar::handle:vertical {
-                background: #4a5568;
-                border-radius: 4px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background: #718096;
-            }
-            """
-        )
+        self.setStyleSheet(global_stylesheet())
 
         central = QWidget()
         central.setObjectName("main_content")
@@ -145,7 +105,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._build_sidebar())
 
         self.stack = QStackedWidget()
-        self.stack.setStyleSheet("QStackedWidget { background-color: #0f0f1a; }")
+        self.stack.setStyleSheet("QStackedWidget { background-color: #0d1522; }")
         layout.addWidget(self.stack, 1)
 
         self.dashboard_page = DashboardPage(self)
@@ -169,8 +129,8 @@ class MainWindow(QMainWindow):
     def _build_sidebar(self) -> QWidget:
         sidebar = QWidget()
         sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(220)
-        sidebar.setStyleSheet(SIDEBAR_STYLE)
+        sidebar.setFixedWidth(232)
+        sidebar.setStyleSheet(sidebar_style())
 
         layout = QVBoxLayout(sidebar)
         layout.setContentsMargins(12, 20, 12, 20)
@@ -180,18 +140,18 @@ class MainWindow(QMainWindow):
         logo_layout = QHBoxLayout(logo_widget)
         logo_layout.setContentsMargins(8, 0, 8, 0)
         logo_icon = QLabel("SV")
-        logo_icon.setFont(QFont("Arial", 20))
-        logo_icon.setStyleSheet("color: #f6ad55; font-weight: bold;")
+        logo_icon.setFont(QFont("Segoe UI", 21, 700))
+        logo_icon.setStyleSheet(f"color: {ACCENT}; font-weight: 800; letter-spacing: 1px;")
         logo_layout.addWidget(logo_icon)
         logo_text = QLabel("Short Video\nMonitor")
-        logo_text.setStyleSheet("color: #e2e8f0; font-size: 16px; font-weight: bold; line-height: 1.2;")
+        logo_text.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 17px; font-weight: 800; line-height: 1.2;")
         logo_layout.addWidget(logo_text)
         logo_layout.addStretch()
         layout.addWidget(logo_widget)
 
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("background-color: #2d3748; margin: 12px 0;")
+        line.setStyleSheet("background-color: #263a56; margin: 12px 0;")
         line.setFixedHeight(1)
         layout.addWidget(line)
 
@@ -206,7 +166,7 @@ class MainWindow(QMainWindow):
         self._nav_btns = []
         for text, idx in nav_items:
             btn = QPushButton(f"  {text}")
-            btn.setStyleSheet(NAV_BTN_STYLE)
+            btn.setStyleSheet(nav_button_style())
             btn.setCheckable(True)
             btn.setAutoExclusive(True)
             btn.clicked.connect(lambda checked, i=idx: self._switch_page(i))
@@ -215,11 +175,11 @@ class MainWindow(QMainWindow):
 
         layout.addStretch()
         self.status_label = QLabel("就绪")
-        self.status_label.setStyleSheet("color: #68d391; font-size: 12px; padding: 8px;")
+        self.status_label.setStyleSheet(f"color: {SUCCESS}; font-size: 12px; padding: 8px;")
         layout.addWidget(self.status_label)
 
         version_label = QLabel("v2.0 双平台版")
-        version_label.setStyleSheet("color: #4a5568; font-size: 11px; padding: 4px 8px;")
+        version_label.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 11px; padding: 4px 8px;")
         layout.addWidget(version_label)
         return sidebar
 
@@ -243,7 +203,7 @@ class MainWindow(QMainWindow):
             self.scheduler.start()
             self.scheduler.add_global_fetch_job(self.fetch_all_active, interval)
             self.status_label.setText(f"自动监控中 ({interval}h)")
-            self.status_label.setStyleSheet("color: #68d391; font-size: 12px; padding: 8px;")
+            self.status_label.setStyleSheet(f"color: {SUCCESS}; font-size: 12px; padding: 8px;")
 
     def fetch_all_active(self):
         from data.database import get_active_influencers, get_setting
@@ -267,7 +227,7 @@ class MainWindow(QMainWindow):
             influencer.get("profile_url", ""),
         )
         self.status_label.setText(f"抓取中: {platform_label(influencer.get('platform'))} {account_text}")
-        self.status_label.setStyleSheet("color: #f6ad55; font-size: 12px; padding: 8px;")
+        self.status_label.setStyleSheet(f"color: {WARNING}; font-size: 12px; padding: 8px;")
 
         worker = FetchWorker(self.fetch_task.run, influencer, max_videos)
         worker.signals.finished.connect(self._on_fetch_done)
@@ -281,17 +241,15 @@ class MainWindow(QMainWindow):
             return
         videos_new = result.get("videos_new", 0)
         self.status_label.setText(f"就绪 (新增 {videos_new} 个视频)")
-        self.status_label.setStyleSheet("color: #68d391; font-size: 12px; padding: 8px;")
+        self.status_label.setStyleSheet(f"color: {SUCCESS}; font-size: 12px; padding: 8px;")
         self.influencer_page.refresh()
         self.data_view_page.refresh()
         self.dashboard_page.refresh()
         self.ai_report_page.refresh()
 
     def _on_fetch_error(self, error: str):
-        self.status_label.setText(f"鎶撳彇鍑洪敊: {error}")
-        self.status_label.setText("抓取出错")
-        self.status_label.setStyleSheet("color: #fc8181; font-size: 12px; padding: 8px;")
         self.status_label.setText(f"抓取出错: {error}")
+        self.status_label.setStyleSheet(f"color: {ACCENT}; font-size: 12px; padding: 8px;")
 
     def _on_scheduler_status(self, msg: str):
         self.status_label.setText(msg)
