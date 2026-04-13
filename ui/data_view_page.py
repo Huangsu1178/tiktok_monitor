@@ -1,29 +1,77 @@
 """
 TikTok Monitor - Data View Page
-数据视图页面
 """
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QAction, QColor
 from PyQt6.QtWidgets import (
-    QComboBox,
-    QFrame,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
+    QMenu,
     QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
-    QHeaderView,
 )
 
 from core.platforms import platform_label
+
+
+TEXT_TITLE = "\u6570\u636e\u89c6\u56fe"
+TEXT_FILTER = "\u9009\u62e9\u535a\u4e3b\uff1a"
+TEXT_SELECT_PLACEHOLDER = "\u8bf7\u9009\u62e9\u535a\u4e3b"
+TEXT_SELECT_ALL = "\u5168\u9009"
+TEXT_CLEAR = "\u6e05\u7a7a"
+TEXT_BATCH_ANALYZE = "\u6279\u91cf AI \u5206\u6790\uff08Top10\uff09"
+TEXT_NO_INFLUENCERS = "\u6682\u65e0\u535a\u4e3b"
+TEXT_ALL_SELECTED = "\u5df2\u5168\u9009 {count} \u4e2a\u535a\u4e3b"
+TEXT_SELECTED_COUNT = "\u5df2\u9009\u62e9 {count} \u4e2a\u535a\u4e3b"
+TEXT_SCOPE_LABEL = "\u5df2\u9009 {count} \u4e2a\u535a\u4e3b"
+
+TEXT_STAT_TOTAL = "\u603b\u89c6\u9891\u6570: {value}"
+TEXT_STAT_AVG_PLAY = "\u5e73\u5747\u64ad\u653e: {value}"
+TEXT_STAT_MAX_PLAY = "\u6700\u9ad8\u64ad\u653e: {value}"
+TEXT_STAT_AVG_LIKE = "\u5e73\u5747\u70b9\u8d5e: {value}"
+TEXT_STAT_AVG_ENGAGE = "\u5e73\u5747\u4e92\u52a8\u7387: {value}%"
+
+TEXT_HEADERS = [
+    "#",
+    "\u535a\u4e3b",
+    "\u89c6\u9891\u63cf\u8ff0",
+    "\u64ad\u653e\u91cf",
+    "\u70b9\u8d5e\u6570",
+    "\u8bc4\u8bba\u6570",
+    "\u5206\u4eab\u6570",
+    "\u4e92\u52a8\u7387",
+    "BGM",
+    "\u53d1\u5e03\u65f6\u95f4",
+    "\u64cd\u4f5c",
+]
+
+TEXT_NO_DESC = "\u65e0\u63cf\u8ff0"
+TEXT_AI_ANALYZE = "AI \u5206\u6790"
+TEXT_DOWNLOAD = "\u4e0b\u8f7d"
+
+TEXT_PROMPT = "\u63d0\u793a"
+TEXT_WARN_NO_VIDEO_INFLUENCER = "\u672a\u627e\u5230\u8be5\u89c6\u9891\u5bf9\u5e94\u7684\u535a\u4e3b\u4fe1\u606f"
+TEXT_WARN_SELECT_ONE = "\u8bf7\u5148\u9009\u62e9\u81f3\u5c11\u4e00\u4e2a\u535a\u4e3b"
+TEXT_WARN_NO_VIDEOS = "\u6240\u9009\u535a\u4e3b\u6682\u65e0\u89c6\u9891\u6570\u636e\uff0c\u8bf7\u5148\u6293\u53d6"
+
+TEXT_DOWNLOAD_START = "\u5f00\u59cb\u4e0b\u8f7d"
+TEXT_DOWNLOAD_START_BODY = "\u6b63\u5728\u4e0b\u8f7d\u89c6\u9891\u5230\uff1a\n{path}\n\n\u4e0b\u8f7d\u5b8c\u6210\u540e\u5c06\u63d0\u793a\u3002"
+TEXT_DOWNLOAD_DONE = "\u4e0b\u8f7d\u5b8c\u6210"
+TEXT_DOWNLOAD_DONE_BODY = "\u89c6\u9891\u5df2\u4fdd\u5b58\u5230\uff1a\n{path}"
+TEXT_DOWNLOAD_FAILED = "\u4e0b\u8f7d\u5931\u8d25"
+TEXT_DOWNLOAD_FAILED_BODY = (
+    "\u89c6\u9891\u4e0b\u8f7d\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u7f51\u7edc\u8fde\u63a5\u6216\u89c6\u9891 URL \u662f\u5426\u6709\u6548\u3002"
+)
 
 
 TABLE_STYLE = """
@@ -53,31 +101,55 @@ QHeaderView::section {
 }
 """
 
-COMBO_STYLE = """
-QComboBox {
+SELECTOR_STYLE = """
+QToolButton {
     background-color: #2d3748;
     color: #e2e8f0;
     border: 1px solid #4a5568;
     border-radius: 6px;
     padding: 8px 12px;
     font-size: 13px;
-    min-width: 200px;
+    min-width: 240px;
+    text-align: left;
 }
-QComboBox::drop-down {
-    border: none;
-    padding-right: 8px;
+QToolButton::menu-indicator {
+    subcontrol-origin: padding;
+    subcontrol-position: right center;
+    right: 10px;
 }
-QComboBox QAbstractItemView {
+QMenu {
     background-color: #2d3748;
     color: #e2e8f0;
     border: 1px solid #4a5568;
-    selection-background-color: #4a5568;
+    padding: 6px;
+}
+QMenu::item {
+    padding: 8px 28px 8px 12px;
+    border-radius: 4px;
+}
+QMenu::item:selected {
+    background-color: #4a5568;
+}
+"""
+
+SECONDARY_BTN_STYLE = """
+QPushButton {
+    background-color: #1f2937;
+    color: #dbe7ff;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+}
+QPushButton:hover {
+    background-color: #273449;
 }
 """
 
 
 class DataViewPage(QWidget):
-    """数据视图页面"""
+    """Data view page."""
 
     def __init__(self, main_window):
         super().__init__()
@@ -85,6 +157,10 @@ class DataViewPage(QWidget):
         self._current_influencer = None
         self._metrics_helper = None
         self._videos = []
+        self._influencers = []
+        self._influencer_by_id = {}
+        self._selected_influencer_ids = set()
+        self._menu_actions = {}
         self._build_ui()
         self.refresh()
 
@@ -102,22 +178,38 @@ class DataViewPage(QWidget):
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
 
-        title = QLabel("数据视图")
+        title = QLabel(TEXT_TITLE)
         title.setStyleSheet("color: #e2e8f0; font-size: 22px; font-weight: bold;")
         layout.addWidget(title)
 
         filter_row = QHBoxLayout()
-        filter_label = QLabel("选择博主：")
+        filter_label = QLabel(TEXT_FILTER)
         filter_label.setStyleSheet("color: #a0aec0; font-size: 14px;")
         filter_row.addWidget(filter_label)
 
-        self.influencer_combo = QComboBox()
-        self.influencer_combo.setStyleSheet(COMBO_STYLE)
-        self.influencer_combo.currentIndexChanged.connect(self._on_influencer_changed)
-        filter_row.addWidget(self.influencer_combo)
+        self.influencer_menu = QMenu(self)
+        self.influencer_menu.setStyleSheet(SELECTOR_STYLE)
+
+        self.influencer_selector = QToolButton()
+        self.influencer_selector.setText(TEXT_SELECT_PLACEHOLDER)
+        self.influencer_selector.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.influencer_selector.setMenu(self.influencer_menu)
+        self.influencer_selector.setStyleSheet(SELECTOR_STYLE)
+        filter_row.addWidget(self.influencer_selector)
+
+        select_all_btn = QPushButton(TEXT_SELECT_ALL)
+        select_all_btn.setStyleSheet(SECONDARY_BTN_STYLE)
+        select_all_btn.clicked.connect(self._select_all_influencers)
+        filter_row.addWidget(select_all_btn)
+
+        clear_btn = QPushButton(TEXT_CLEAR)
+        clear_btn.setStyleSheet(SECONDARY_BTN_STYLE)
+        clear_btn.clicked.connect(self._clear_selected_influencers)
+        filter_row.addWidget(clear_btn)
+
         filter_row.addStretch()
 
-        analyze_all_btn = QPushButton("批量 AI 分析（Top10）")
+        analyze_all_btn = QPushButton(TEXT_BATCH_ANALYZE)
         analyze_all_btn.setStyleSheet(
             """
             QPushButton {
@@ -139,11 +231,11 @@ class DataViewPage(QWidget):
         self.stats_row = QHBoxLayout()
         self.stats_row.setSpacing(12)
         for attr, label, color in [
-            ("stat_total", "总视频数: 0", "#4299e1"),
-            ("stat_avg_play", "平均播放: 0", "#48bb78"),
-            ("stat_max_play", "最高播放: 0", "#ed8936"),
-            ("stat_avg_like", "平均点赞: 0", "#9f7aea"),
-            ("stat_avg_engage", "平均互动率: 0%", "#f6ad55"),
+            ("stat_total", TEXT_STAT_TOTAL.format(value=0), "#4299e1"),
+            ("stat_avg_play", TEXT_STAT_AVG_PLAY.format(value=0), "#48bb78"),
+            ("stat_max_play", TEXT_STAT_MAX_PLAY.format(value=0), "#ed8936"),
+            ("stat_avg_like", TEXT_STAT_AVG_LIKE.format(value=0), "#9f7aea"),
+            ("stat_avg_engage", TEXT_STAT_AVG_ENGAGE.format(value=0), "#f6ad55"),
         ]:
             lbl = QLabel(label)
             lbl.setStyleSheet(
@@ -164,16 +256,16 @@ class DataViewPage(QWidget):
 
         self.table = QTableWidget()
         self.table.setStyleSheet(TABLE_STYLE + "QTableWidget { alternate-background-color: #16213e; }")
-        self.table.setColumnCount(10)
-        self.table.setHorizontalHeaderLabels(
-            ["#", "视频描述", "播放量", "点赞数", "评论数", "分享数", "互动率", "BGM", "发布时间", "操作"]
-        )
+        self.table.setColumnCount(len(TEXT_HEADERS))
+        self.table.setHorizontalHeaderLabels(TEXT_HEADERS)
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        for i in range(2, 8):
-            header.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(8, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        for index in range(3, 9):
+            header.setSectionResizeMode(index, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(9, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(10, QHeaderView.ResizeMode.ResizeToContents)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -182,82 +274,166 @@ class DataViewPage(QWidget):
 
     def set_influencer(self, influencer: dict):
         self._current_influencer = influencer
+        influencer_id = influencer.get("id") if influencer else None
+        self._selected_influencer_ids = {influencer_id} if influencer_id else set()
         self.refresh()
 
     def refresh(self):
         from data.database import get_all_influencers
 
-        influencers = get_all_influencers()
+        self._influencers = get_all_influencers()
+        self._influencer_by_id = {influencer["id"]: influencer for influencer in self._influencers}
 
-        self.influencer_combo.blockSignals(True)
-        self.influencer_combo.clear()
-        self.influencer_combo.addItem("-- 请选择博主 --", None)
-        for influencer in influencers:
-            self.influencer_combo.addItem(f"{platform_label(influencer.get('platform'))} · @{influencer['username']}", influencer)
+        preserved_ids = {
+            influencer_id
+            for influencer_id in self._selected_influencer_ids
+            if influencer_id in self._influencer_by_id
+        }
+        if not preserved_ids and self._current_influencer and self._current_influencer.get("id") in self._influencer_by_id:
+            preserved_ids = {self._current_influencer["id"]}
+        self._selected_influencer_ids = preserved_ids
 
-        if self._current_influencer:
-            for i in range(self.influencer_combo.count()):
-                data = self.influencer_combo.itemData(i)
-                if data and data.get("id") == self._current_influencer.get("id"):
-                    self.influencer_combo.setCurrentIndex(i)
-                    break
-
-        self.influencer_combo.blockSignals(False)
+        self._rebuild_influencer_menu()
+        self._sync_current_influencer()
         self._load_videos()
 
-    def _on_influencer_changed(self, index: int):
-        self._current_influencer = self.influencer_combo.itemData(index)
-        self._load_videos()
+    def _rebuild_influencer_menu(self):
+        self.influencer_menu.clear()
+        self._menu_actions = {}
 
-    def _load_videos(self):
-        if not self._current_influencer:
-            self._videos = []
-            self.table.setRowCount(0)
-            self.stat_total.setText("总视频数: 0")
-            self.stat_avg_play.setText("平均播放: 0")
-            self.stat_max_play.setText("最高播放: 0")
-            self.stat_avg_like.setText("平均点赞: 0")
-            self.stat_avg_engage.setText("平均互动率: 0%")
+        if not self._influencers:
+            empty_action = QAction(TEXT_NO_INFLUENCERS, self)
+            empty_action.setEnabled(False)
+            self.influencer_menu.addAction(empty_action)
+            self._update_selector_text()
             return
 
-        from data.database import get_videos_by_influencer
+        for influencer in self._influencers:
+            label = f"{platform_label(influencer.get('platform'))} | @{influencer['username']}"
+            action = QAction(label, self)
+            action.setCheckable(True)
+            action.setChecked(influencer["id"] in self._selected_influencer_ids)
+            action.toggled.connect(
+                lambda checked, influencer_id=influencer["id"]: self._toggle_influencer_selection(influencer_id, checked)
+            )
+            self.influencer_menu.addAction(action)
+            self._menu_actions[influencer["id"]] = action
 
-        videos = get_videos_by_influencer(self._current_influencer["id"], 100)
+        self._update_selector_text()
+
+    def _toggle_influencer_selection(self, influencer_id: int, checked: bool):
+        if checked:
+            self._selected_influencer_ids.add(influencer_id)
+        else:
+            self._selected_influencer_ids.discard(influencer_id)
+        self._sync_current_influencer()
+        self._update_selector_text()
+        self._load_videos()
+
+    def _set_selected_influencer_ids(self, influencer_ids):
+        self._selected_influencer_ids = {
+            influencer_id for influencer_id in influencer_ids if influencer_id in self._influencer_by_id
+        }
+        for influencer_id, action in self._menu_actions.items():
+            action.blockSignals(True)
+            action.setChecked(influencer_id in self._selected_influencer_ids)
+            action.blockSignals(False)
+        self._sync_current_influencer()
+        self._update_selector_text()
+        self._load_videos()
+
+    def _select_all_influencers(self):
+        self._set_selected_influencer_ids(self._influencer_by_id.keys())
+
+    def _clear_selected_influencers(self):
+        self._set_selected_influencer_ids([])
+
+    def _sync_current_influencer(self):
+        if len(self._selected_influencer_ids) == 1:
+            influencer_id = next(iter(self._selected_influencer_ids))
+            self._current_influencer = self._influencer_by_id.get(influencer_id)
+        else:
+            self._current_influencer = None
+
+    def _update_selector_text(self):
+        selected_ids = list(self._selected_influencer_ids)
+        count = len(selected_ids)
+        total = len(self._influencers)
+
+        if count == 0:
+            self.influencer_selector.setText(TEXT_SELECT_PLACEHOLDER)
+            return
+        if count == total and total > 0:
+            self.influencer_selector.setText(TEXT_ALL_SELECTED.format(count=total))
+            return
+        if count == 1:
+            influencer = self._influencer_by_id.get(selected_ids[0])
+            if influencer:
+                self.influencer_selector.setText(
+                    f"{platform_label(influencer.get('platform'))} | @{influencer['username']}"
+                )
+                return
+        self.influencer_selector.setText(TEXT_SELECTED_COUNT.format(count=count))
+
+    def _reset_stats(self):
+        self.stat_total.setText(TEXT_STAT_TOTAL.format(value=0))
+        self.stat_avg_play.setText(TEXT_STAT_AVG_PLAY.format(value=0))
+        self.stat_max_play.setText(TEXT_STAT_MAX_PLAY.format(value=0))
+        self.stat_avg_like.setText(TEXT_STAT_AVG_LIKE.format(value=0))
+        self.stat_avg_engage.setText(TEXT_STAT_AVG_ENGAGE.format(value=0))
+
+    def _load_videos(self):
+        if not self._selected_influencer_ids:
+            self._videos = []
+            self.table.setRowCount(0)
+            self._reset_stats()
+            return
+
+        from data.database import get_videos_by_influencer_ids
+
+        videos = get_videos_by_influencer_ids(sorted(self._selected_influencer_ids), 100)
         self._videos = videos
 
-        if videos:
-            total = len(videos)
-            avg_play = sum(v.get("play_count", 0) for v in videos) / total
-            max_play = max(v.get("play_count", 0) for v in videos)
-            avg_like = sum(v.get("like_count", 0) for v in videos) / total
+        if not videos:
+            self.table.setRowCount(0)
+            self._reset_stats()
+            return
 
-            temp_analyzer = self._get_metrics_helper()
-            engagement_rates = [
-                temp_analyzer.calculate_engagement_metrics(video)["engagement_rate"] for video in videos
-            ]
-            avg_engage = sum(engagement_rates) / len(engagement_rates) if engagement_rates else 0
+        total = len(videos)
+        avg_play = sum(v.get("play_count", 0) for v in videos) / total
+        max_play = max(v.get("play_count", 0) for v in videos)
+        avg_like = sum(v.get("like_count", 0) for v in videos) / total
 
-            self.stat_total.setText(f"总视频数: {total}")
-            self.stat_avg_play.setText(f"平均播放: {self._format_number(avg_play)}")
-            self.stat_max_play.setText(f"最高播放: {self._format_number(max_play)}")
-            self.stat_avg_like.setText(f"平均点赞: {self._format_number(avg_like)}")
-            self.stat_avg_engage.setText(f"平均互动率: {avg_engage:.2f}%")
+        temp_analyzer = self._get_metrics_helper()
+        engagement_rates = [
+            temp_analyzer.calculate_engagement_metrics(video)["engagement_rate"] for video in videos
+        ]
+        avg_engage = sum(engagement_rates) / len(engagement_rates) if engagement_rates else 0
+
+        self.stat_total.setText(TEXT_STAT_TOTAL.format(value=total))
+        self.stat_avg_play.setText(TEXT_STAT_AVG_PLAY.format(value=self._format_number(avg_play)))
+        self.stat_max_play.setText(TEXT_STAT_MAX_PLAY.format(value=self._format_number(max_play)))
+        self.stat_avg_like.setText(TEXT_STAT_AVG_LIKE.format(value=self._format_number(avg_like)))
+        self.stat_avg_engage.setText(TEXT_STAT_AVG_ENGAGE.format(value=f"{avg_engage:.2f}"))
 
         self.table.setRowCount(len(videos))
 
         for row, video in enumerate(videos):
             self.table.setItem(row, 0, QTableWidgetItem(str(row + 1)))
 
-            desc = video.get("description") or video.get("title") or "无描述"
-            self.table.setItem(row, 1, QTableWidgetItem(desc[:80] + "..." if len(desc) > 80 else desc))
+            account_text = f"{platform_label(video.get('influencer_platform'))} | @{video.get('influencer_username', '')}"
+            self.table.setItem(row, 1, QTableWidgetItem(account_text))
+
+            desc = video.get("description") or video.get("title") or TEXT_NO_DESC
+            self.table.setItem(row, 2, QTableWidgetItem(desc[:80] + "..." if len(desc) > 80 else desc))
 
             play_item = QTableWidgetItem(self._format_number(video.get("play_count", 0)))
             if (video.get("play_count") or 0) > 1_000_000:
                 play_item.setForeground(QColor("#f6ad55"))
-            self.table.setItem(row, 2, play_item)
-            self.table.setItem(row, 3, QTableWidgetItem(self._format_number(video.get("like_count", 0))))
-            self.table.setItem(row, 4, QTableWidgetItem(self._format_number(video.get("comment_count", 0))))
-            self.table.setItem(row, 5, QTableWidgetItem(self._format_number(video.get("share_count", 0))))
+            self.table.setItem(row, 3, play_item)
+            self.table.setItem(row, 4, QTableWidgetItem(self._format_number(video.get("like_count", 0))))
+            self.table.setItem(row, 5, QTableWidgetItem(self._format_number(video.get("comment_count", 0))))
+            self.table.setItem(row, 6, QTableWidgetItem(self._format_number(video.get("share_count", 0))))
 
             metrics = self._get_metrics_helper().calculate_engagement_metrics(video)
             engage_rate = metrics["engagement_rate"]
@@ -268,17 +444,17 @@ class DataViewPage(QWidget):
                 engage_item.setForeground(QColor("#f6ad55"))
             else:
                 engage_item.setForeground(QColor("#fc8181"))
-            self.table.setItem(row, 6, engage_item)
+            self.table.setItem(row, 7, engage_item)
 
-            self.table.setItem(row, 7, QTableWidgetItem(video.get("music_name") or ""))
-            self.table.setItem(row, 8, QTableWidgetItem(video.get("published_at") or ""))
+            self.table.setItem(row, 8, QTableWidgetItem(video.get("music_name") or ""))
+            self.table.setItem(row, 9, QTableWidgetItem(video.get("published_at") or ""))
 
             btn_widget = QWidget()
             btn_layout = QHBoxLayout(btn_widget)
             btn_layout.setContentsMargins(4, 2, 4, 2)
             btn_layout.setSpacing(4)
 
-            analyze_btn = QPushButton("AI 分析")
+            analyze_btn = QPushButton(TEXT_AI_ANALYZE)
             analyze_btn.setStyleSheet(
                 """
                 QPushButton {
@@ -296,7 +472,7 @@ class DataViewPage(QWidget):
             btn_layout.addWidget(analyze_btn)
 
             if video.get("video_url"):
-                dl_btn = QPushButton("下载")
+                dl_btn = QPushButton(TEXT_DOWNLOAD)
                 dl_btn.setStyleSheet(
                     """
                     QPushButton {
@@ -313,47 +489,70 @@ class DataViewPage(QWidget):
                 dl_btn.clicked.connect(lambda _, vid=video: self._download_video(vid))
                 btn_layout.addWidget(dl_btn)
 
-            self.table.setCellWidget(row, 9, btn_widget)
+            self.table.setCellWidget(row, 10, btn_widget)
             self.table.setRowHeight(row, 48)
 
+    def _get_video_influencer(self, video: dict):
+        influencer = self._influencer_by_id.get(video.get("influencer_id"))
+        if influencer:
+            return influencer
+
+        username = video.get("influencer_username", "")
+        platform = video.get("influencer_platform", "tiktok")
+        if not username:
+            return None
+        return {
+            "id": video.get("influencer_id"),
+            "username": username,
+            "platform": platform,
+            "display_name": video.get("influencer_display_name", ""),
+        }
+
+    def _selected_scope_label(self):
+        if len(self._selected_influencer_ids) == 1 and self._current_influencer:
+            return self._current_influencer.get("username", "")
+        return TEXT_SCOPE_LABEL.format(count=len(self._selected_influencer_ids))
+
     def _analyze_single(self, video: dict):
-        """分析单个视频"""
-        if not self._current_influencer:
-            QMessageBox.warning(self, "提示", "请先选择一个博主")
+        influencer = self._get_video_influencer(video)
+        if not influencer:
+            QMessageBox.warning(self, TEXT_PROMPT, TEXT_WARN_NO_VIDEO_INFLUENCER)
             return
 
         self.main_window.navigate_to(3)
-        self.main_window.ai_report_page.open_single_analysis(self._current_influencer, video)
+        self.main_window.ai_report_page.open_single_analysis(influencer, video)
 
     def _analyze_batch(self):
-        """批量分析当前博主的 Top10 视频"""
-        if not self._current_influencer:
-            QMessageBox.warning(self, "提示", "请先选择一个博主")
+        if not self._selected_influencer_ids:
+            QMessageBox.warning(self, TEXT_PROMPT, TEXT_WARN_SELECT_ONE)
             return
 
-        from data.database import get_videos_by_influencer
-
-        videos = get_videos_by_influencer(self._current_influencer["id"], 10)
+        videos = self._videos[:10]
         if not videos:
-            QMessageBox.warning(self, "提示", "该博主暂无视频数据，请先抓取")
+            QMessageBox.warning(self, TEXT_PROMPT, TEXT_WARN_NO_VIDEOS)
             return
 
         self.main_window.navigate_to(3)
-        self.main_window.ai_report_page.open_batch_analysis(self._current_influencer, videos)
+        self.main_window.ai_report_page.open_batch_analysis(
+            self._current_influencer,
+            videos,
+            self._selected_scope_label(),
+        )
 
     def _download_video(self, video: dict):
-        """下载视频"""
         from data.database import get_setting, update_video_local_path
 
+        influencer = self._get_video_influencer(video)
+        username = influencer.get("username", "unknown") if influencer else "unknown"
+        platform = influencer.get("platform", "tiktok") if influencer else "tiktok"
+
         download_path = get_setting("download_path", os.path.expanduser("~/Downloads/TikTok_Monitor"))
-        username = self._current_influencer.get("username", "unknown") if self._current_influencer else "unknown"
-        platform = self._current_influencer.get("platform", "tiktok") if self._current_influencer else "tiktok"
         output_dir = os.path.join(download_path, platform, username)
 
         QMessageBox.information(
             self,
-            "开始下载",
-            f"正在下载视频到：\n{output_dir}\n\n下载完成后将提示。",
+            TEXT_DOWNLOAD_START,
+            TEXT_DOWNLOAD_START_BODY.format(path=output_dir),
         )
 
         video_url = video.get("video_url", "")
@@ -364,10 +563,14 @@ class DataViewPage(QWidget):
 
         if local_path:
             update_video_local_path(video["id"], local_path)
-            QMessageBox.information(self, "下载完成", f"视频已保存到：\n{local_path}")
+            QMessageBox.information(
+                self,
+                TEXT_DOWNLOAD_DONE,
+                TEXT_DOWNLOAD_DONE_BODY.format(path=local_path),
+            )
             return
 
-        QMessageBox.warning(self, "下载失败", "视频下载失败，请检查网络连接或视频 URL 是否有效。")
+        QMessageBox.warning(self, TEXT_DOWNLOAD_FAILED, TEXT_DOWNLOAD_FAILED_BODY)
 
     def _format_number(self, value):
         value = value or 0

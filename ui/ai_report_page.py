@@ -398,12 +398,12 @@ class AIReportPage(QWidget):
         self._switch_report("single")
         self.start_single_analysis(video, influencer.get("username", ""))
 
-    def open_batch_analysis(self, influencer: dict, videos: list):
+    def open_batch_analysis(self, influencer: dict | None, videos: list, username: str = ""):
         self.refresh()
         video = videos[0] if videos else None
         self._select_context(influencer, video)
         self._switch_report("batch")
-        self.start_batch_analysis(videos, influencer.get("username", ""))
+        self.start_batch_analysis(videos, username or (influencer.get("username", "") if influencer else ""))
 
     def _select_context(self, influencer: dict, video: dict | None):
         if influencer:
@@ -442,6 +442,13 @@ class AIReportPage(QWidget):
             if video["id"] == selected_id:
                 return video
         return None
+
+    def _format_analysis_subject(self, username: str):
+        if not username:
+            return "当前范围"
+        if username.startswith("已选 "):
+            return username
+        return f"@{username}"
 
     def start_single_analysis(self, video: dict, username: str = ""):
         self._render_loading(

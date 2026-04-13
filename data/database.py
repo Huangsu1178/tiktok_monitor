@@ -451,6 +451,32 @@ def get_videos_by_influencer(influencer_id: int, limit: int = 50):
     return [dict(r) for r in rows]
 
 
+def get_videos_by_influencer_ids(influencer_ids: list[int], limit: int = 100):
+    influencer_ids = [int(influencer_id) for influencer_id in influencer_ids if influencer_id]
+    if not influencer_ids:
+        return []
+
+    placeholders = ",".join("?" for _ in influencer_ids)
+    conn = get_connection()
+    rows = conn.execute(
+        f"""
+        SELECT
+            v.*,
+            i.username AS influencer_username,
+            i.display_name AS influencer_display_name,
+            i.platform AS influencer_platform
+        FROM videos v
+        JOIN influencers i ON i.id = v.influencer_id
+        WHERE v.influencer_id IN ({placeholders})
+        ORDER BY v.play_count DESC
+        LIMIT ?
+        """,
+        (*influencer_ids, limit),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def get_video_by_id(video_db_id: int):
     conn = get_connection()
     row = conn.execute("SELECT * FROM videos WHERE id=?", (video_db_id,)).fetchone()

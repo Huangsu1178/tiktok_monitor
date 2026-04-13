@@ -33,7 +33,7 @@ def create_splash():
     splash_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
     splash_label.setText(
         """
-        <div style='text-align:center; color:white;'>
+        <div style='text-align:center; color:white; font-family:"Microsoft YaHei","Segoe UI",sans-serif;'>
             <div style='font-size:44px; margin-bottom:12px;'>SV</div>
             <div style='font-size:24px; font-weight:bold; color:#e2e8f0;'>Short Video Monitor</div>
             <div style='font-size:14px; color:#718096; margin-top:8px;'>TikTok / 抖音双平台监控与分析</div>

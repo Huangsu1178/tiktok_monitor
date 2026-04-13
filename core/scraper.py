@@ -2,10 +2,13 @@
 Multi-platform scraper module for TikTok / Douyin.
 """
 import asyncio
+import json
 import os
+import re
 import sys
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+from urllib.parse import unquote
 
 sys.path.append('/opt/.manus/.sandbox-runtime')
 
@@ -127,9 +130,15 @@ class MultiPlatformScraper:
                 await page.wait_for_timeout(3000)
 
                 info = dict(fallback)
+                html = await page.content()
+                structured_info = self._extract_user_info_from_html(platform, username, target_url, html)
+                if structured_info:
+                    info.update({k: v for k, v in structured_info.items() if v not in (None, "")})
                 selectors = self._user_info_selectors(platform)
 
                 for key, selector in selectors.items():
+                    if info.get(key):
+                        continue
                     try:
                         text = await page.locator(selector).first.inner_text()
                         if key == "follower_count":
@@ -229,15 +238,19 @@ class MultiPlatformScraper:
                 await page.wait_for_timeout(4000)
 
                 if platform == "douyin":
-                    for _ in range(3):
+                    for _ in range(5):
                         await page.mouse.wheel(0, 1800)
                         await page.wait_for_timeout(1200)
+
+                html = await page.content()
+                videos.extend(self._extract_videos_from_html(platform, username, html, max_count))
+                seen_video_ids = {video["video_id"] for video in videos if video.get("video_id")}
 
                 selectors = self._video_card_selectors(platform)
                 card_selector = selectors["card"]
                 cards = await page.locator(card_selector).all()
 
-                for card in cards[:max_count]:
+                for card in cards:
                     try:
                         href = await card.get_attribute("href")
                         if not href:
@@ -248,7 +261,7 @@ class MultiPlatformScraper:
                         if not href:
                             continue
                         video_id = self._extract_video_id(href)
-                        if not video_id:
+                        if not video_id or video_id in seen_video_ids:
                             continue
 
                         play_text = ""
@@ -275,6 +288,9 @@ class MultiPlatformScraper:
                                 "published_at": "",
                             }
                         )
+                        seen_video_ids.add(video_id)
+                        if len(videos) >= max_count:
+                            break
                     except Exception as exc:
                         print(f"[Scraper] DOM parse failed: {exc}")
 
@@ -345,6 +361,8 @@ class MultiPlatformScraper:
         text = (url or "").split("?")[0].rstrip("/")
         if "/video/" in text:
             return text.split("/video/")[-1]
+        if "/note/" in text:
+            return text.split("/note/")[-1]
         if "modal_id=" in (url or ""):
             return (url or "").split("modal_id=")[-1].split("&")[0]
         return text.split("/")[-1]
@@ -352,7 +370,7 @@ class MultiPlatformScraper:
     def _video_card_selectors(self, platform: str) -> Dict[str, str]:
         if platform == "douyin":
             return {
-                "card": "a[href*='/video/'], a[href*='modal_id=']",
+                "card": "a[href*='/video/'], a[href*='/note/'], a[href*='modal_id=']",
                 "play": "[data-e2e='video-views'], span",
             }
         return {
@@ -372,6 +390,216 @@ class MultiPlatformScraper:
             "bio": "[data-e2e='user-bio']",
             "follower_count": "[data-e2e='followers-count']",
         }
+
+    def _extract_user_info_from_html(self, platform: str, username: str, profile_url: str, html: str) -> Dict[str, Any]:
+        for data in self._extract_embedded_json_candidates(html):
+            info = self._find_user_info(platform, data, username, profile_url)
+            if info:
+                return info
+        return {}
+
+    def _extract_videos_from_html(self, platform: str, username: str, html: str, max_count: int) -> List[Dict[str, Any]]:
+        videos: List[Dict[str, Any]] = []
+        seen_video_ids = set()
+
+        for data in self._extract_embedded_json_candidates(html):
+            for item in self._find_video_items(platform, data):
+                video = self._normalize_video_item(platform, username, item)
+                video_id = video.get("video_id", "")
+                if not video_id or video_id in seen_video_ids:
+                    continue
+                videos.append(video)
+                seen_video_ids.add(video_id)
+                if len(videos) >= max_count:
+                    return videos
+
+        for href in re.findall(r'href=[\'"]([^\'"]*(?:/video/|/note/)[^\'"]+)[\'"]', html or "", re.IGNORECASE):
+            video_id = self._extract_video_id(href)
+            if not video_id or video_id in seen_video_ids:
+                continue
+            videos.append(
+                {
+                    "platform": platform,
+                    "video_id": video_id,
+                    "title": "",
+                    "description": "",
+                    "video_url": self._absolute_url(platform, href),
+                    "thumbnail_url": "",
+                    "play_count": 0,
+                    "like_count": 0,
+                    "comment_count": 0,
+                    "share_count": 0,
+                    "duration": 0,
+                    "hashtags": "",
+                    "music_name": "",
+                    "published_at": "",
+                }
+            )
+            seen_video_ids.add(video_id)
+            if len(videos) >= max_count:
+                break
+
+        return videos
+
+    def _extract_embedded_json_candidates(self, html: str) -> List[Any]:
+        candidates: List[Any] = []
+        if not html:
+            return candidates
+
+        patterns = [
+            r'<script[^>]+id="RENDER_DATA"[^>]*>(.*?)</script>',
+            r'<script[^>]+id="SIGI_STATE"[^>]*>(.*?)</script>',
+            r'window\.__INITIAL_STATE__\s*=\s*({.*?})\s*;</script>',
+            r'window\.__PRELOADED_STATE__\s*=\s*({.*?})\s*;</script>',
+        ]
+
+        for pattern in patterns:
+            for match in re.findall(pattern, html, re.DOTALL | re.IGNORECASE):
+                parsed = self._try_parse_json_blob(match)
+                if parsed is not None:
+                    candidates.append(parsed)
+
+        return candidates
+
+    def _try_parse_json_blob(self, raw: str) -> Any:
+        if raw is None:
+            return None
+        blob = raw.strip()
+        if not blob:
+            return None
+
+        parse_attempts = [blob]
+        if "%" in blob:
+            parse_attempts.append(unquote(blob))
+
+        for candidate in parse_attempts:
+            try:
+                return json.loads(candidate)
+            except Exception:
+                continue
+        return None
+
+    def _find_user_info(self, platform: str, data: Any, username: str, profile_url: str) -> Dict[str, Any]:
+        stack = [data]
+        while stack:
+            current = stack.pop()
+            if isinstance(current, dict):
+                if platform == "douyin":
+                    if any(key in current for key in ("nickname", "follower_count", "following_count")):
+                        sec_uid = str(current.get("sec_uid") or current.get("secUid") or "")
+                        unique_id = str(current.get("unique_id") or current.get("uniqueId") or "")
+                        parsed_username = sec_uid or unique_id or username
+                        return {
+                            "username": parsed_username,
+                            "display_name": current.get("nickname", ""),
+                            "bio": current.get("signature", "") or current.get("desc", ""),
+                            "avatar_url": current.get("avatar_thumb", {}).get("url_list", [""])[0]
+                            if isinstance(current.get("avatar_thumb"), dict)
+                            else current.get("avatar", ""),
+                            "follower_count": self._to_int(current.get("follower_count") or current.get("mplatform_followers_count")),
+                            "following_count": self._to_int(current.get("following_count")),
+                            "video_count": self._to_int(current.get("aweme_count") or current.get("total_favorited")),
+                            "profile_url": profile_url or self._default_profile_url(platform, parsed_username),
+                        }
+                else:
+                    if "uniqueId" in current and any(key in current for key in ("nickname", "signature")):
+                        parsed_username = str(current.get("uniqueId") or username)
+                        stats = current.get("stats", {}) if isinstance(current.get("stats"), dict) else {}
+                        return {
+                            "username": parsed_username,
+                            "display_name": current.get("nickname", ""),
+                            "bio": current.get("signature", ""),
+                            "avatar_url": current.get("avatarMedium", "") or current.get("avatarLarger", ""),
+                            "follower_count": self._to_int(stats.get("followerCount") or current.get("followerCount")),
+                            "following_count": self._to_int(stats.get("followingCount") or current.get("followingCount")),
+                            "video_count": self._to_int(stats.get("videoCount") or current.get("videoCount")),
+                            "profile_url": profile_url or self._default_profile_url(platform, parsed_username),
+                        }
+
+                stack.extend(current.values())
+            elif isinstance(current, list):
+                stack.extend(current)
+        return {}
+
+    def _find_video_items(self, platform: str, data: Any) -> List[Dict[str, Any]]:
+        matches: List[Dict[str, Any]] = []
+        stack = [data]
+        while stack:
+            current = stack.pop()
+            if isinstance(current, dict):
+                if platform == "douyin":
+                    if current.get("aweme_id") or current.get("awemeId"):
+                        matches.append(current)
+                elif current.get("id") and (current.get("stats") or current.get("video")):
+                    matches.append(current)
+                stack.extend(current.values())
+            elif isinstance(current, list):
+                stack.extend(current)
+        return matches
+
+    def _normalize_video_item(self, platform: str, username: str, item: Dict[str, Any]) -> Dict[str, Any]:
+        if platform == "douyin":
+            video_id = str(item.get("aweme_id") or item.get("awemeId") or "")
+            statistics = item.get("statistics", {}) if isinstance(item.get("statistics"), dict) else {}
+            video_meta = item.get("video", {}) if isinstance(item.get("video"), dict) else {}
+            cover = item.get("video", {}).get("cover", {}) if isinstance(item.get("video"), dict) else {}
+            desc = item.get("desc", "") or item.get("description", "")
+            return {
+                "platform": platform,
+                "video_id": video_id,
+                "title": desc[:100],
+                "description": desc,
+                "video_url": build_video_url(platform, username, video_id),
+                "thumbnail_url": (cover.get("url_list") or [""])[0] if isinstance(cover, dict) else "",
+                "play_count": self._to_int(statistics.get("play_count")),
+                "like_count": self._to_int(statistics.get("digg_count")),
+                "comment_count": self._to_int(statistics.get("comment_count")),
+                "share_count": self._to_int(statistics.get("share_count")),
+                "duration": int(self._to_int(video_meta.get("duration")) / 1000) if video_meta.get("duration") else 0,
+                "hashtags": "",
+                "music_name": item.get("music", {}).get("title", "") if isinstance(item.get("music"), dict) else "",
+                "published_at": self._format_timestamp(item.get("create_time")),
+            }
+
+        stats = item.get("stats", {}) if isinstance(item.get("stats"), dict) else {}
+        video_id = str(item.get("id") or "")
+        desc = item.get("desc", "") or item.get("description", "")
+        return {
+            "platform": platform,
+            "video_id": video_id,
+            "title": desc[:100],
+            "description": desc,
+            "video_url": item.get("shareUrl", "") or build_video_url(platform, username, video_id),
+            "thumbnail_url": item.get("video", {}).get("cover", "") if isinstance(item.get("video"), dict) else "",
+            "play_count": self._to_int(stats.get("playCount")),
+            "like_count": self._to_int(stats.get("diggCount")),
+            "comment_count": self._to_int(stats.get("commentCount")),
+            "share_count": self._to_int(stats.get("shareCount")),
+            "duration": self._to_int(item.get("video", {}).get("duration")) if isinstance(item.get("video"), dict) else 0,
+            "hashtags": "",
+            "music_name": item.get("music", {}).get("title", "") if isinstance(item.get("music"), dict) else "",
+            "published_at": self._format_timestamp(item.get("createTime")),
+        }
+
+    def _to_int(self, value: Any) -> int:
+        if value in (None, ""):
+            return 0
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str):
+            return format_count(value)
+        return 0
+
+    def _format_timestamp(self, value: Any) -> str:
+        timestamp = self._to_int(value)
+        if not timestamp:
+            return ""
+        try:
+            return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return ""
 
 
 class TikTokScraper(MultiPlatformScraper):
