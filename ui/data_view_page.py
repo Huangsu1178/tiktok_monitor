@@ -466,13 +466,14 @@ class DataViewPage(QWidget):
         )
 
     def _download_video(self, video: dict):
-        from data.database import get_setting, update_video_local_path
+        from data.database import update_video_local_path
 
         influencer = self._get_video_influencer(video)
         username = influencer.get("username", "unknown") if influencer else "unknown"
         platform = influencer.get("platform", "tiktok") if influencer else "tiktok"
 
-        download_path = get_setting("download_path", os.path.expanduser("~/Downloads/TikTok_Monitor"))
+        # 从环境变量读取下载路径
+        download_path = os.environ.get("DOWNLOAD_PATH", os.path.expanduser("~/Downloads/TikTok_Monitor"))
         output_dir = os.path.join(download_path, platform, username)
 
         QMessageBox.information(

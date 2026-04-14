@@ -20,34 +20,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from config import DEFAULT_AI_MODEL, AI_CONFIG
 from skills.ai_client import AIClientMixin
 
-try:
-    from openai import OpenAI
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
-
 
 class HookResearchSkill(AIClientMixin):
     """钩子研究技能 - 发现和分析高转化文本钩子"""
 
     def __init__(self, api_key: str = "", api_base: str = "", model: str = DEFAULT_AI_MODEL):
         self._init_ai_client(api_key, api_base, model)
-
-    def is_available(self) -> bool:
-        return OPENAI_AVAILABLE and bool(self.api_key) and self._client is not None
-
-    def update_config(self, api_key: str, api_base: str = "", model: str = ""):
-        self.api_key = api_key
-        if api_base:
-            self.api_base = api_base
-        if model:
-            self.model = model
-            
-        if OPENAI_AVAILABLE and api_key:
-            client_kwargs = {"api_key": api_key}
-            if self.api_base:
-                client_kwargs["base_url"] = self.api_base
-            self._client = OpenAI(**client_kwargs)
 
     def research_hooks(
         self,
@@ -66,11 +44,13 @@ class HookResearchSkill(AIClientMixin):
         Returns:
             钩子研究结果
         """
-        print(f"[Hook Research] 研究领域: {niche}, 情感: {emotion_type or 'all'}")
+        print(f"[Hook Research] 开始研究钩子 - 领域: {niche}, 情感: {emotion_type or 'all'}, 数量: {count}")
         
         if not self.is_available():
+            print("[Hook Research] ⚠️ AI服务不可用，使用模拟研究结果")
             return self._mock_hook_research(niche, count, emotion_type)
 
+        print(f"[Hook Research] 准备钩子研究提示词...")
         prompt = f"""你是一位专业的 TikTok 钩子研究专家。
 
 请为以下领域研究 {count} 个已验证的高转化文本钩子（text hooks）。
@@ -119,6 +99,7 @@ class HookResearchSkill(AIClientMixin):
 返回 {count} 个高质量钩子，确保每个都是实际可用的。"""
 
         try:
+            print(f"[Hook Research] 调用AI API进行钩子研究...")
             response = self._call_api_with_retry(
                 messages=[
                     {"role": "system", "content": "你是 TikTok 钩子研究专家，擅长发现和分析高转化钩子。"},
@@ -129,17 +110,22 @@ class HookResearchSkill(AIClientMixin):
             )
             
             if response is None:
+                print("[Hook Research] ❌ AI API调用失败，使用模拟结果")
                 return self._mock_hook_research(niche, count, emotion_type)
             
+            print(f"[Hook Research] 收到AI响应，正在解析...")
             raw_response = self._extract_response_text(response)
             result = self._parse_json(raw_response)
             
             if result:
                 result["researched_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                print(f"[Hook Research] ✅ 钩子研究完成，找到 {len(result.get('hooks', []))} 个钩子")
                 return result
+            else:
+                print("[Hook Research] ⚠️ JSON解析失败，使用模拟结果")
                 
         except Exception as e:
-            print(f"[Hook Research] 研究失败: {e}")
+            print(f"[Hook Research] ❌ 研究失败: {e}")
         
         return self._mock_hook_research(niche, count, emotion_type)
 
@@ -160,9 +146,12 @@ class HookResearchSkill(AIClientMixin):
         Returns:
             分析结果
         """
+        print(f"[Hook Research] 开始分析钩子有效性: {hook_text[:50]}...")
         if not self.is_available():
+            print("[Hook Research] ⚠️ AI服务不可用，使用模拟分析")
             return self._mock_hook_analysis(hook_text, niche)
 
+        print(f"[Hook Research] 准备钩子分析提示词...")
         prompt = f"""分析以下 TikTok 钩子的有效性。
 
 ## 钩子文本
@@ -205,6 +194,7 @@ class HookResearchSkill(AIClientMixin):
 ```"""
 
         try:
+            print(f"[Hook Research] 调用AI API进行钩子分析...")
             response = self._call_api_with_retry(
                 messages=[
                     {"role": "system", "content": "你是 TikTok 内容分析专家。"},
@@ -215,13 +205,21 @@ class HookResearchSkill(AIClientMixin):
             )
             
             if response is None:
+                print("[Hook Research] ❌ AI API调用失败，使用模拟分析")
                 return self._mock_hook_analysis(hook_text, niche)
             
+            print(f"[Hook Research] 收到AI响应，正在解析...")
             raw_response = self._extract_response_text(response)
-            return self._parse_json(raw_response) or self._mock_hook_analysis(hook_text, niche)
+            result = self._parse_json(raw_response)
+            if not result:
+                print("[Hook Research] ⚠️ JSON解析失败，使用模拟分析")
+                return self._mock_hook_analysis(hook_text, niche)
+            
+            print(f"[Hook Research] ✅ 钩子有效性分析完成")
+            return result
                 
         except Exception as e:
-            print(f"[Hook Research] 分析失败: {e}")
+            print(f"[Hook Research] ❌ 分析失败: {e}")
             return self._mock_hook_analysis(hook_text, niche)
 
     def generate_hook_variations(
@@ -239,9 +237,12 @@ class HookResearchSkill(AIClientMixin):
         Returns:
             钩子变体列表
         """
+        print(f"[Hook Research] 开始生成钩子变体 - 基础钩子: {base_hook[:50]}..., 数量: {count}")
         if not self.is_available():
+            print("[Hook Research] ⚠️ AI服务不可用，返回原始钩子")
             return [{"variation": base_hook, "type": "original"}]
 
+        print(f"[Hook Research] 准备钩子变体生成提示词...")
         prompt = f"""基于以下 TikTok 钩子，生成 {count} 个变体。
 
 ## 基础钩子
@@ -271,6 +272,7 @@ class HookResearchSkill(AIClientMixin):
 ```"""
 
         try:
+            print(f"[Hook Research] 调用AI API生成钩子变体...")
             response = self._call_api_with_retry(
                 messages=[
                     {"role": "system", "content": "你是创意文案专家。"},
@@ -281,15 +283,23 @@ class HookResearchSkill(AIClientMixin):
             )
             
             if response is None:
+                print("[Hook Research] ❌ AI API调用失败，返回空列表")
                 return []
             
+            print(f"[Hook Research] 收到AI响应，正在解析...")
             raw_response = self._extract_response_text(response)
             result = self._parse_json(raw_response)
             
-            return result.get("variations", []) if result else []
+            if result:
+                variations = result.get("variations", [])
+                print(f"[Hook Research] ✅ 钩子变体生成完成，生成 {len(variations)} 个变体")
+                return variations
+            else:
+                print("[Hook Research] ⚠️ JSON解析失败，返回空列表")
+                return []
                 
         except Exception as e:
-            print(f"[Hook Research] 生成变体失败: {e}")
+            print(f"[Hook Research] ❌ 生成变体失败: {e}")
             return []
 
     def _parse_json(self, raw: str) -> Optional[dict]:

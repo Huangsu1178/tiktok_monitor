@@ -3,22 +3,141 @@ TikTok Monitor - 统一配置管理
 所有默认配置项集中管理，避免硬编码
 """
 import os
+import shutil
 from typing import Dict, Any
+
+
+# ==================== 环境文件管理 ====================
+
+def _ensure_env_file():
+    """确保 .env 文件存在，不存在则从 .env.example 复制"""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    env_path = os.path.join(base_dir, '.env')
+    env_example_path = os.path.join(base_dir, '.env.example')
+    
+    if not os.path.exists(env_path):
+        if os.path.exists(env_example_path):
+            shutil.copy2(env_example_path, env_path)
+            print(f"[Config] ✅ 已从 .env.example 创建 .env 文件")
+            return True
+        else:
+            print(f"[Config] ⚠️ 警告: .env 和 .env.example 均不存在")
+            return False
+    else:
+        print(f"[Config] ✅ .env 文件已存在")
+        return False
+
+
+def _load_dotenv_file():
+    """加载 .env 文件到环境变量，每次启动强制重载"""
+    print("[Config] 🔍 开始加载配置文件...")
+    
+    try:
+        from dotenv import load_dotenv
+        
+        # 确保 .env 文件存在
+        _ensure_env_file()
+        
+        # 加载 .env 文件（强制覆盖已存在的环境变量）
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        env_path = os.path.join(base_dir, '.env')
+        if os.path.exists(env_path):
+            load_dotenv(env_path, override=True)
+            print(f"[Config] ✅ 成功加载 .env 文件: {env_path}")
+            
+            # 输出加载的关键配置（隐藏敏感信息）
+            if os.environ.get('PROXY_URL') or os.environ.get('HTTP_PROXY'):
+                proxy = os.environ.get('PROXY_URL') or os.environ.get('HTTP_PROXY')
+                print(f"[Config] 📝 PROXY: {proxy}")
+            
+            return True
+        else:
+            print(f"[Config] ❌ 错误: .env 文件不存在于 {env_path}")
+            return False
+    except ImportError:
+        print("[Config] ⚠️ python-dotenv 未安装，跳过 .env 加载")
+        print("[Config] 💡 请运行: pip install python-dotenv")
+        return False
+
+
+def _sync_env_file(key: str, value: str):
+    """同步更新 .env 文件中的配置项"""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    env_path = os.path.join(base_dir, '.env')
+    
+    if not os.path.exists(env_path):
+        print(f"[Config] 🔄 .env 文件不存在，正在创建...")
+        _ensure_env_file()
+    
+    # 读取现有内容
+    lines = []
+    if os.path.exists(env_path):
+        with open(env_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+    
+    # 查找并更新或添加配置项
+    key_found = False 
+    new_lines = []
+    for line in lines:
+        stripped = line.strip()
+        # 跳过空行和注释行，但保留它们
+        if not stripped or stripped.startswith('#'):
+            new_lines.append(line)
+            continue
+        
+        # 检查是否是目标 key
+        if '=' in stripped:
+            current_key = stripped.split('=', 1)[0].strip()
+            if current_key == key:
+                # 保留注释（如果有）
+                comment = ''
+                if '#' in line:
+                    comment = ' #' + line.split('#', 1)[1].rstrip('\n')
+                new_lines.append(f"{key}={value}{comment}\n")
+                key_found = True
+                continue
+        
+        new_lines.append(line)
+    
+    # 如果 key 不存在，添加到文件末尾
+    if not key_found:
+        # 确保文件末尾有空行
+        if new_lines and not new_lines[-1].endswith('\n'):
+            new_lines.append('\n')
+        new_lines.append(f"{key}={value}\n")
+    
+    # 写回文件
+    with open(env_path, 'w', encoding='utf-8') as f:
+        f.writelines(new_lines)
+    
+    # 输出日志（隐藏敏感值）
+    if 'KEY' in key or 'SECRET' in key or 'PASSWORD' in key:
+        display_value = '***' if value else '(empty)'
+    else:
+        display_value = value if value else '(empty)'
+    print(f"[Config] ✅ 已更新 .env: {key}={display_value}")
+
+
+# 程序启动时立即加载 .env 文件
+print("[Config] " + "="*50)
+print("[Config] 🚀 TikTok Monitor 配置初始化")
+print("[Config] " + "="*50)
+_load_dotenv_file()
 
 
 # ==================== AI 模型配置 ====================
 AI_CONFIG = {
     # 默认使用的模型名称
-    "default_model": "gpt-5-chat-latest",
+    "default_model": "gemini-2.0-flash",
     
-    # API 配置
-    "api_base": "",  # 留空则使用 OpenAI 官方 API
-    "api_key": "",   # 留空则从环境变量读取
+    # Gemini 配置
+    "gemini_api_key": "",
+    "gemini_model": "gemini-2.0-flash",
     
     # 请求参数
     "temperature": 0.7,
-    "max_tokens": 1500,
-    "max_tokens_batch": 2000,  # 批量分析使用更大的 token 限制
+    "max_tokens": 8192,  # 单视频分析（适配 thinking model 需要更大配额）
+    "max_tokens_batch": 16384,  # 批量分析需要更多输出空间（适配 thinking model）
     "max_tokens_competitor": 2000,
     "max_tokens_trend": 1500,
     "max_tokens_hook_tag": 1000,
@@ -250,35 +369,115 @@ DEFAULT_MAX_VIDEOS = SCRAPER_CONFIG["max_videos_per_fetch"]
 DEFAULT_FETCH_INTERVAL = SCHEDULER_CONFIG["fetch_interval_hours"]
 
 
-# ==================== 加载本地配置（不被版本控制）====================
-# 优先级：.env 文件 > config_local.py > 环境变量 > 默认值
+# ==================== 从环境变量更新配置 ====================
+# .env 文件已在模块顶部加载，这里从 os.environ 读取并更新配置
+print("[Config] 🔄 开始应用配置到各模块...")
 
-# 方式一：从 .env 文件加载（推荐）
-try:
-    from dotenv import load_dotenv
-    import os
+# Gemini 配置
+if os.environ.get('GEMINI_API_KEY'):
+    AI_CONFIG['gemini_api_key'] = os.environ['GEMINI_API_KEY']
+    print(f"[Config] ✅ Gemini配置: api_key 已设置")
+if os.environ.get('GEMINI_MODEL'):
+    AI_CONFIG['gemini_model'] = os.environ['GEMINI_MODEL']
+    print(f"[Config] ✅ Gemini配置: model = {os.environ['GEMINI_MODEL']}")
+
+# 代理配置（仅从 .env 读取，不使用系统环境变量）
+if os.environ.get('PROXY_URL'):
+    SCRAPER_CONFIG['proxy_url'] = os.environ['PROXY_URL']
+    print(f"[Config] ✅ 代理配置: proxy_url = {os.environ['PROXY_URL']}")
+elif os.environ.get('HTTP_PROXY'):
+    SCRAPER_CONFIG['proxy_url'] = os.environ['HTTP_PROXY']
+    print(f"[Config] ✅ 代理配置: 使用 HTTP_PROXY = {os.environ['HTTP_PROXY']}")
+else:
+    print(f"[Config] ℹ️  代理配置: 未设置")
+
+# 日志配置
+if os.environ.get('LOG_LEVEL'):
+    LOGGING_CONFIG['level'] = os.environ['LOG_LEVEL']
+    print(f"[Config] ✅ 日志配置: level = {os.environ['LOG_LEVEL']}")
+
+# 调度器配置
+if os.environ.get('AUTO_FETCH_ENABLED'):
+    enabled = os.environ['AUTO_FETCH_ENABLED'] == '1' or os.environ['AUTO_FETCH_ENABLED'].lower() == 'true'
+    SCHEDULER_CONFIG['auto_fetch_enabled'] = enabled
+    print(f"[Config] ✅ 调度器: auto_fetch = {enabled}")
+if os.environ.get('FETCH_INTERVAL'):
+    try:
+        SCHEDULER_CONFIG['fetch_interval_hours'] = float(os.environ['FETCH_INTERVAL'])
+        print(f"[Config] ✅ 调度器: interval = {os.environ['FETCH_INTERVAL']}h")
+    except ValueError:
+        print(f"[Config] ⚠️ 调度器: FETCH_INTERVAL 值无效: {os.environ['FETCH_INTERVAL']}")
+
+# 抓取配置
+if os.environ.get('MAX_VIDEOS_PER_FETCH'):
+    try:
+        SCRAPER_CONFIG['max_videos_per_fetch'] = int(os.environ['MAX_VIDEOS_PER_FETCH'])
+        print(f"[Config] ✅ 抓取配置: max_videos = {os.environ['MAX_VIDEOS_PER_FETCH']}")
+    except ValueError:
+        print(f"[Config] ⚠️ 抓取配置: MAX_VIDEOS_PER_FETCH 值无效: {os.environ['MAX_VIDEOS_PER_FETCH']}")
+
+# 下载路径
+if os.environ.get('DOWNLOAD_PATH'):
+    SCRAPER_CONFIG['download_path'] = os.environ['DOWNLOAD_PATH']
+    print(f"[Config] ✅ 下载路径: {os.environ['DOWNLOAD_PATH']}")
+
+print("[Config] " + "="*50)
+
+
+# ==================== 配置同步函数 ====================
+
+def sync_config_to_env(section: str, key: str, value: Any) -> bool:
+    """
+    将配置更改同步到 .env 文件
     
-    # 加载 .env 文件
-    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
-    if os.path.exists(env_path):
-        load_dotenv(env_path)
-        print("[Config] 已加载 .env 配置文件")
-    
-    # 从环境变量更新 AI 配置
-    if os.environ.get('OPENAI_API_KEY'):
-        AI_CONFIG['api_key'] = os.environ['OPENAI_API_KEY']
-    if os.environ.get('OPENAI_API_BASE'):
-        AI_CONFIG['api_base'] = os.environ['OPENAI_API_BASE']
-    if os.environ.get('HTTP_PROXY') or os.environ.get('HTTPS_PROXY'):
-        SCRAPER_CONFIG['proxy_url'] = os.environ.get('HTTP_PROXY') or os.environ.get('HTTPS_PROXY')
-    if os.environ.get('LOG_LEVEL'):
-        LOGGING_CONFIG['level'] = os.environ['LOG_LEVEL']
+    Args:
+        section: 配置节（如 'AI_CONFIG'）
+        key: 配置键（代码中的键名）
+        value: 配置值
         
-except ImportError:
-    # python-dotenv 未安装，跳过 .env 加载
-    pass
+    Returns:
+        是否成功同步
+    """
+    # 配置项映射：代码中的键名 -> .env 中的键名
+    config_mapping = {
+        ('AI_CONFIG', 'gemini_api_key'): 'GEMINI_API_KEY',
+        ('AI_CONFIG', 'gemini_model'): 'GEMINI_MODEL',
+        ('SCRAPER_CONFIG', 'proxy_url'): 'PROXY_URL',
+        ('SCRAPER_CONFIG', 'max_videos_per_fetch'): 'MAX_VIDEOS_PER_FETCH',
+        ('SCRAPER_CONFIG', 'download_path'): 'DOWNLOAD_PATH',
+        ('SCHEDULER_CONFIG', 'auto_fetch_enabled'): 'AUTO_FETCH_ENABLED',
+        ('SCHEDULER_CONFIG', 'fetch_interval_hours'): 'FETCH_INTERVAL',
+        ('LOGGING_CONFIG', 'level'): 'LOG_LEVEL',
+    }
+    
+    env_key = config_mapping.get((section, key))
+    if not env_key:
+        print(f"[Config] ⚠️ 同步配置: 未找到映射 {section}.{key}")
+        return False
+    
+    # 转换值为字符串
+    if isinstance(value, bool):
+        str_value = '1' if value else '0'
+    else:
+        str_value = str(value)
+    
+    # 同步到 .env 文件
+    _sync_env_file(env_key, str_value)
+    
+    # 同步到 os.environ
+    os.environ[env_key] = str_value
+    
+    # 输出日志（隐藏敏感值）
+    if 'KEY' in env_key or 'SECRET' in env_key or 'PASSWORD' in env_key:
+        display_value = '***' if str_value else '(empty)'
+    else:
+        display_value = str_value if str_value else '(empty)'
+    print(f"[Config] 🔄 同步配置: {section}.{key} -> {env_key}={display_value}")
+    
+    return True
 
-# 方式二：从 config_local.py 加载（向后兼容）
+
+# ==================== 从 config_local.py 加载（向后兼容）====================
 try:
     from config_local import AI_LOCAL_CONFIG, SCRAPER_LOCAL_CONFIG
     AI_CONFIG.update(AI_LOCAL_CONFIG)

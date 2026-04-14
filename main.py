@@ -6,12 +6,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-try:
-    from dotenv import load_dotenv
-
-    load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
-except ImportError:
-    pass
+# 导入 config.py 会自动加载 .env 文件（若不存在则从 .env.example 复制）
+import config
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont

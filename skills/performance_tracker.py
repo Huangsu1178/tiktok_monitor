@@ -35,20 +35,25 @@ class PerformanceTrackerSkill:
         Returns:
             性能追踪结果
         """
-        print(f"[Performance] 追踪 {len(videos)} 个视频的表现")
+        print(f"[Performance] 开始追踪 {len(videos)} 个视频的表现 (周期: {time_period})")
         
         if not videos:
+            print("[Performance] ⚠️ 没有视频数据")
             return {"error": "没有视频数据"}
         
+        print(f"[Performance] 计算基础指标...")
         # 计算基础指标
         metrics = self._calculate_aggregate_metrics(videos)
         
+        print(f"[Performance] 分析互动率...")
         # 计算互动率
         engagement_analysis = self._analyze_engagement(videos)
         
+        print(f"[Performance] 分析趋势...")
         # 计算趋势
         trend_analysis = self._analyze_trends(videos)
         
+        print(f"[Performance] 分析表现分布...")
         # 识别表现分布
         performance_distribution = self._analyze_distribution(videos)
         
@@ -63,6 +68,7 @@ class PerformanceTrackerSkill:
         }
         
         self.performance_history.append(result)
+        print(f"[Performance] ✅ 性能追踪完成")
         return result
 
     def identify_winners(
@@ -82,11 +88,13 @@ class PerformanceTrackerSkill:
         Returns:
             赢家视频列表
         """
-        print(f"[Performance] 识别 Top {top_n} 赢家（标准: {criteria}）")
+        print(f"[Performance] 开始识别 Top {top_n} 赢家（标准: {criteria}）")
         
         if not videos:
+            print("[Performance] ⚠️ 没有视频数据")
             return []
         
+        print(f"[Performance] 计算视频指标...")
         # 为每个视频计算指标
         videos_with_metrics = []
         for video in videos:
@@ -96,6 +104,7 @@ class PerformanceTrackerSkill:
                 "metrics": metrics,
             })
         
+        print(f"[Performance] 根据 {criteria} 排序...")
         # 根据标准排序
         if criteria == "engagement_rate":
             sorted_videos = sorted(
@@ -116,6 +125,7 @@ class PerformanceTrackerSkill:
                 reverse=True
             )
         
+        print(f"[Performance] 分析赢家特征...")
         # 返回 Top N
         winners = []
         for i, video in enumerate(sorted_videos[:top_n]):
@@ -129,6 +139,7 @@ class PerformanceTrackerSkill:
                 "replicable_elements": self._identify_replicable_elements(video),
             })
         
+        print(f"[Performance] ✅ 识别完成，找到 {len(winners)} 个赢家")
         return winners
 
     def analyze_winner_patterns(
@@ -144,36 +155,53 @@ class PerformanceTrackerSkill:
         Returns:
             赢家模式分析
         """
-        print(f"[Performance] 分析 {len(winner_videos)} 个赢家的模式")
+        print(f"[Performance] 开始分析 {len(winner_videos)} 个赢家的模式")
         
         if not winner_videos:
+            print("[Performance] ⚠️ 没有赢家视频")
             return {"error": "没有赢家视频"}
         
+        print(f"[Performance] 分析共同元素...")
         # 分析共同元素
         common_elements = self._find_common_elements(winner_videos)
         
+        print(f"[Performance] 分析钩子类型分布...")
         # 分析钩子类型分布
         hook_distribution = self._analyze_hook_distribution(winner_videos)
         
+        print(f"[Performance] 分析时长模式...")
         # 分析时长模式
         duration_patterns = self._analyze_duration_patterns(winner_videos)
         
+        print(f"[Performance] 分析发布时间模式...")
         # 分析发布时间模式
         posting_patterns = self._analyze_posting_patterns(winner_videos)
         
+        print(f"[Performance] 分析标签使用...")
         # 分析标签使用
         hashtag_patterns = self._analyze_hashtag_patterns(winner_videos)
         
-        return {
+        print(f"[Performance] 识别关键成功因素...")
+        # 识别关键成功因素
+        key_success_factors = self._identify_key_success_factors(winner_videos)
+        
+        print(f"[Performance] 生成复制公式...")
+        # 生成复制公式
+        replication_formula = self._generate_replication_formula(winner_videos)
+        
+        result = {
             "common_elements": common_elements,
             "hook_distribution": hook_distribution,
             "duration_patterns": duration_patterns,
             "posting_patterns": posting_patterns,
             "hashtag_patterns": hashtag_patterns,
-            "key_success_factors": self._identify_key_success_factors(winner_videos),
-            "replication_formula": self._generate_replication_formula(winner_videos),
+            "key_success_factors": key_success_factors,
+            "replication_formula": replication_formula,
             "analyzed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
+        
+        print(f"[Performance] ✅ 赢家模式分析完成")
+        return result
 
     def generate_ab_test_suggestions(
         self,
@@ -190,10 +218,11 @@ class PerformanceTrackerSkill:
         Returns:
             A/B 测试方案列表
         """
-        print(f"[Performance] 生成 {test_count} 个 A/B 测试方案")
+        print(f"[Performance] 开始生成 {test_count} 个 A/B 测试方案")
         
         tests = []
         
+        print(f"[Performance] 生成钩子测试方案...")
         # 测试 1: 不同钩子
         tests.append({
             "test_id": "test_hook",
@@ -208,6 +237,7 @@ class PerformanceTrackerSkill:
             "test_duration": "48小时",
         })
         
+        print(f"[Performance] 生成发布时间测试方案...")
         # 测试 2: 不同发布时间
         tests.append({
             "test_id": "test_posting_time",
@@ -222,6 +252,7 @@ class PerformanceTrackerSkill:
             "test_duration": "3天",
         })
         
+        print(f"[Performance] 生成标签组合测试方案...")
         # 测试 3: 不同标签组合
         tests.append({
             "test_id": "test_hashtags",
@@ -236,6 +267,7 @@ class PerformanceTrackerSkill:
             "test_duration": "7天",
         })
         
+        print(f"[Performance] ✅ A/B 测试方案生成完成")
         return tests[:test_count]
 
     def generate_performance_report(
@@ -253,18 +285,23 @@ class PerformanceTrackerSkill:
         Returns:
             性能报告
         """
-        print(f"[Performance] 生成 {period} 性能报告")
+        print(f"[Performance] 开始生成 {period} 性能报告")
         
+        print(f"[Performance] 识别赢家视频...")
         winners = self.identify_winners(videos, top_n=3)
+        
+        print(f"[Performance] 追踪整体表现...")
         performance = self.track_performance(videos)
         
+        print(f"[Performance] 生成洞察...")
         # 生成洞察
         insights = self._generate_insights(videos, winners, performance)
         
+        print(f"[Performance] 生成建议...")
         # 生成建议
         recommendations = self._generate_recommendations(videos, winners)
         
-        return {
+        result = {
             "period": period,
             "summary": {
                 "total_videos": len(videos),
@@ -278,6 +315,9 @@ class PerformanceTrackerSkill:
             "next_actions": self._suggest_next_actions(videos, winners),
             "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
+        
+        print(f"[Performance] ✅ 性能报告生成完成")
+        return result
 
     # ==================== 内部辅助方法 ====================
 

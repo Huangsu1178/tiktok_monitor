@@ -5,6 +5,7 @@ TikTok Monitor - TikTok AI Analysis Skill
 import json
 import os
 import sys
+import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -28,9 +29,16 @@ class TikTokAIAnalysisSkill(AIClientMixin):
         self._init_ai_client(api_key, api_base, model)
 
     def analyze_single_video(self, video: dict, username: str = "") -> Optional[Dict[str, Any]]:
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        start_time = time.time()
+        video_id = video.get('video_id', 'unknown')
+        print(f"[AI Analysis] [{timestamp}] 开始分析视频: {video_id}")
+        print(f"[AI Analysis] 开始分析单个视频: {video_id}")
         if not self.is_available():
+            print("[AI Analysis] ⚠️ AI服务不可用，使用模拟分析")
             return self._mock_single_analysis(video)
 
+        print(f"[AI Analysis] 准备分析提示词...")
         prompt = HOOK_ANALYSIS_PROMPT.format(
             username=username or "未知",
             description=video.get("description", video.get("title", "无描述")),
@@ -48,29 +56,48 @@ class TikTokAIAnalysisSkill(AIClientMixin):
             {"role": "system", "content": "你是专业的 TikTok 内容策略分析师，请用中文回答。"},
             {"role": "user", "content": prompt},
         ]
+        
+        api_timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[AI Analysis] [{api_timestamp}] 发送API请求...")
+        print(f"[AI Analysis] 调用AI API进行分析...")
         response = self._call_api_with_retry(
             messages=messages,
             max_retries=AI_CONFIG["max_retries"],
             temperature=AI_CONFIG["temperature"],
             max_tokens=AI_CONFIG["max_tokens"],
         )
+        
         if response is None:
+            print("[AI Analysis] ❌ AI API调用失败，使用模拟分析")
             return self._mock_single_analysis(video)
 
+        print(f"[AI Analysis] 收到AI响应，正在解析...")
         raw_response = self._extract_response_text(response)
         result = self._parse_json_response(raw_response)
         if not result:
+            print("[AI Analysis] ⚠️ JSON解析失败，使用模拟分析")
             return self._mock_single_analysis(video)
 
         result["raw_response"] = raw_response
+        end_timestamp = datetime.now().strftime("%H:%M:%S")
+        elapsed = time.time() - start_time
+        print(f"[AI Analysis] [{end_timestamp}] 分析完成 | 总耗时: {elapsed:.1f}s")
+        print(f"[AI Analysis] ✅ 单个视频分析完成")
         return result
 
     def analyze_batch_videos(self, videos: list, username: str = "") -> Optional[Dict[str, Any]]:
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        start_time = time.time()
+        print(f"[AI Analysis] [{timestamp}] 批量分析 | 视频数: {len(videos)} | 开始处理...")
+        print(f"[AI Analysis] 开始批量分析 {len(videos)} 个视频")
         if not videos:
+            print("[AI Analysis] ⚠️ 视频列表为空")
             return None
         if not self.is_available():
+            print("[AI Analysis] ⚠️ AI服务不可用，使用模拟批量分析")
             return self._mock_batch_analysis(videos)
 
+        print(f"[AI Analysis] 准备批量分析数据...")
         videos_data = "\n".join(
             [
                 (
@@ -86,29 +113,47 @@ class TikTokAIAnalysisSkill(AIClientMixin):
             {"role": "system", "content": "你是专业的 TikTok 内容策略分析师，请用中文回答。"},
             {"role": "user", "content": prompt},
         ]
+        
+        api_timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[AI Analysis] [{api_timestamp}] 发送API请求...")
+        print(f"[AI Analysis] 调用AI API进行批量分析...")
         response = self._call_api_with_retry(
             messages=messages,
             max_retries=AI_CONFIG["max_retries"],
             temperature=AI_CONFIG["temperature"],
             max_tokens=AI_CONFIG["max_tokens_batch"],
         )
+        
         if response is None:
+            print("[AI Analysis] ❌ AI API批量调用失败，使用模拟分析")
             return self._mock_batch_analysis(videos)
 
+        print(f"[AI Analysis] 收到AI批量响应，正在解析...")
         raw_response = self._extract_response_text(response)
         result = self._parse_json_response(raw_response)
         if not result:
+            print("[AI Analysis] ⚠️ 批量分析JSON解析失败，使用模拟分析")
             return self._mock_batch_analysis(videos)
 
         result["raw_response"] = raw_response
         result["analyzed_videos_count"] = len(videos[:10])
         result["username"] = username
+        end_timestamp = datetime.now().strftime("%H:%M:%S")
+        elapsed = time.time() - start_time
+        print(f"[AI Analysis] [{end_timestamp}] 批量分析完成 | 总耗时: {elapsed:.1f}s")
+        print(f"[AI Analysis] ✅ 批量分析完成，分析了 {len(videos[:10])} 个视频")
         return result
 
     def analyze_competitors(self, creators_data: list) -> Optional[Dict[str, Any]]:
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        start_time = time.time()
+        print(f"[AI Analysis] [{timestamp}] 开始竞品分析 | 博主数: {len(creators_data)}")
+        print(f"[AI Analysis] 开始竞品分析，共 {len(creators_data)} 个博主")
         if not self.is_available():
+            print("[AI Analysis] ⚠️ AI服务不可用，无法进行竞品分析")
             return None
 
+        print(f"[AI Analysis] 准备竞品分析数据...")
         creators_summary = []
         for creator in creators_data:
             username = creator.get("username", "未知")
@@ -125,6 +170,10 @@ class TikTokAIAnalysisSkill(AIClientMixin):
             num_creators=len(creators_data),
             creators_data="\n".join(creators_summary),
         )
+        
+        api_timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[AI Analysis] [{api_timestamp}] 发送API请求...")
+        print(f"[AI Analysis] 调用AI API进行竞品分析...")
         response = self._call_api_with_retry(
             messages=[
                 {"role": "system", "content": "你是专业的 TikTok 竞品分析师，请用中文回答。"},
@@ -134,18 +183,37 @@ class TikTokAIAnalysisSkill(AIClientMixin):
             temperature=AI_CONFIG["temperature"],
             max_tokens=AI_CONFIG["max_tokens_competitor"],
         )
+        
         if response is None:
+            print("[AI Analysis] ❌ AI API竞品分析调用失败")
             return None
-        return self._parse_json_response(self._extract_response_text(response))
+        
+        print(f"[AI Analysis] 收到竞品分析响应，正在解析...")
+        result = self._parse_json_response(self._extract_response_text(response))
+        end_timestamp = datetime.now().strftime("%H:%M:%S")
+        elapsed = time.time() - start_time
+        print(f"[AI Analysis] [{end_timestamp}] 竞品分析完成 | 总耗时: {elapsed:.1f}s")
+        print(f"[AI Analysis] ✅ 竞品分析完成")
+        return result
 
     def predict_trend(self, draft_data: dict, historical_data: list) -> Optional[Dict[str, Any]]:
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        start_time = time.time()
+        print(f"[AI Analysis] [{timestamp}] 开始趋势预测分析")
+        print(f"[AI Analysis] 开始趋势预测分析")
         if not self.is_available():
+            print("[AI Analysis] ⚠️ AI服务不可用，无法进行趋势预测")
             return None
 
+        print(f"[AI Analysis] 准备趋势预测数据...")
         prompt = TREND_PREDICTION_PROMPT.format(
             draft_data=json.dumps(draft_data, ensure_ascii=False, indent=2),
             historical_data=json.dumps(historical_data[:5], ensure_ascii=False, indent=2),
         )
+        
+        api_timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[AI Analysis] [{api_timestamp}] 发送API请求...")
+        print(f"[AI Analysis] 调用AI API进行趋势预测...")
         response = self._call_api_with_retry(
             messages=[
                 {"role": "system", "content": "你是专业的 TikTok 数据科学家，请用中文回答。"},
@@ -155,17 +223,36 @@ class TikTokAIAnalysisSkill(AIClientMixin):
             temperature=AI_CONFIG["temperature"],
             max_tokens=AI_CONFIG["max_tokens_trend"],
         )
+        
         if response is None:
+            print("[AI Analysis] ❌ AI API趋势预测调用失败")
             return None
-        return self._parse_json_response(self._extract_response_text(response))
+        
+        print(f"[AI Analysis] 收到趋势预测响应，正在解析...")
+        result = self._parse_json_response(self._extract_response_text(response))
+        end_timestamp = datetime.now().strftime("%H:%M:%S")
+        elapsed = time.time() - start_time
+        print(f"[AI Analysis] [{end_timestamp}] 趋势预测完成 | 总耗时: {elapsed:.1f}s")
+        print(f"[AI Analysis] ✅ 趋势预测完成")
+        return result
 
     def tag_hook_library_entry(self, hook_analysis: dict) -> Optional[Dict[str, Any]]:
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        start_time = time.time()
+        print(f"[AI Analysis] [{timestamp}] 开始钩子库条目标签化")
+        print(f"[AI Analysis] 开始钩子库条目标签化")
         if not self.is_available():
+            print("[AI Analysis] ⚠️ AI服务不可用，使用模拟标签化")
             return self._mock_hook_tagging(hook_analysis)
 
+        print(f"[AI Analysis] 准备标签化数据...")
         prompt = HOOK_LIBRARY_TAGGING_PROMPT.format(
             hook_analysis_data=json.dumps(hook_analysis, ensure_ascii=False, indent=2)
         )
+        
+        api_timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[AI Analysis] [{api_timestamp}] 发送API请求...")
+        print(f"[AI Analysis] 调用AI API进行标签化...")
         response = self._call_api_with_retry(
             messages=[
                 {"role": "system", "content": "你是专业的信息架构师，请用中文回答。"},
@@ -175,11 +262,22 @@ class TikTokAIAnalysisSkill(AIClientMixin):
             temperature=0.5,
             max_tokens=AI_CONFIG["max_tokens_hook_tag"],
         )
+        
         if response is None:
+            print("[AI Analysis] ❌ AI API标签化调用失败，使用模拟标签化")
             return self._mock_hook_tagging(hook_analysis)
 
+        print(f"[AI Analysis] 收到标签化响应，正在解析...")
         result = self._parse_json_response(self._extract_response_text(response))
-        return result or self._mock_hook_tagging(hook_analysis)
+        if not result:
+            print("[AI Analysis] ⚠️ 标签化JSON解析失败，使用模拟标签化")
+            return self._mock_hook_tagging(hook_analysis)
+        
+        end_timestamp = datetime.now().strftime("%H:%M:%S")
+        elapsed = time.time() - start_time
+        print(f"[AI Analysis] [{end_timestamp}] 钩子库条目标签化完成 | 总耗时: {elapsed:.1f}s")
+        print(f"[AI Analysis] ✅ 钩子库条目标签化完成")
+        return result
 
     def calculate_engagement_metrics(self, video: dict) -> Dict[str, float]:
         play_count = video.get("play_count", 0) or 0
