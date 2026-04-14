@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
-from config import DEFAULT_AI_MODEL
+from config import DEFAULT_AI_MODEL, sync_config_to_env, AI_CONFIG, SCRAPER_CONFIG, SCHEDULER_CONFIG
 from ui.theme import (
     SUCCESS,
     TEXT_PRIMARY,
@@ -228,35 +228,76 @@ class SettingsPage(QWidget):
             self.download_path_input.setText(path)
 
     def _load_settings(self):
-        """从数据库加载设置"""
-        from data.database import get_setting
-        self.api_key_input.setText(get_setting("openai_api_key", ""))
-        self.api_base_input.setText(get_setting("openai_api_base", ""))
-        self.model_input.setText(get_setting("openai_model", DEFAULT_AI_MODEL))
-        self.auto_fetch_check.setChecked(get_setting("auto_fetch_enabled", "0") == "1")
-        self.interval_spin.setValue(float(get_setting("fetch_interval_hours", "1")))
-        self.max_videos_spin.setValue(int(get_setting("max_videos_per_fetch", "20")))
-        self.download_path_input.setText(
-            get_setting("download_path", os.path.expanduser("~/Downloads/TikTok_Monitor"))
-        )
-        self.proxy_input.setText(get_setting("proxy_url", ""))
+        """从环境变量加载设置"""
+        # 直接从环境变量读取配置
+        api_key = os.environ.get("OPENAI_API_KEY", "")
+        self.api_key_input.setText(api_key)
+        print(f"[Settings] 加载 API Key: {'已设置' if api_key else '未设置'}")
+        
+        api_base = os.environ.get("OPENAI_API_BASE", "")
+        self.api_base_input.setText(api_base)
+        print(f"[Settings] 加载 API Base: {api_base or '默认'}")
+        
+        model = os.environ.get("OPENAI_MODEL", DEFAULT_AI_MODEL)
+        self.model_input.setText(model)
+        print(f"[Settings] 加载 Model: {model}")
+        
+        # 加载自动抓取设置
+        auto_fetch = os.environ.get("AUTO_FETCH_ENABLED", "0") == "1"
+        self.auto_fetch_check.setChecked(auto_fetch)
+        print(f"[Settings] 加载自动抓取: {auto_fetch}")
+        
+        # 加载抓取间隔
+        interval = float(os.environ.get("FETCH_INTERVAL", "1"))
+        self.interval_spin.setValue(interval)
+        print(f"[Settings] 加载抓取间隔: {interval}h")
+        
+        # 加载最大视频数
+        max_videos = int(os.environ.get("MAX_VIDEOS_PER_FETCH", "20"))
+        self.max_videos_spin.setValue(max_videos)
+        print(f"[Settings] 加载最大视频数: {max_videos}")
+        
+        # 加载下载路径
+        download_path = os.environ.get("DOWNLOAD_PATH", os.path.expanduser("~/Downloads/TikTok_Monitor"))
+        self.download_path_input.setText(download_path)
+        print(f"[Settings] 加载下载路径: {download_path}")
+        
+        # 加载代理设置
+        proxy = os.environ.get("PROXY_URL", os.environ.get("HTTP_PROXY", ""))
+        self.proxy_input.setText(proxy)
+        print(f"[Settings] 加载代理: {proxy or '未设置'}")
 
     def _save_settings(self):
-        """保存设置到数据库"""
-        from data.database import set_setting
-
+        """保存设置到 .env 文件"""
         api_key = self.api_key_input.text().strip()
         api_base = self.api_base_input.text().strip()
         model = self.model_input.text().strip() or DEFAULT_AI_MODEL
+        auto_fetch = self.auto_fetch_check.isChecked()
+        interval = self.interval_spin.value()
+        max_videos = self.max_videos_spin.value()
+        download_path = self.download_path_input.text().strip()
+        proxy_url = self.proxy_input.text().strip()
         
-        set_setting("openai_api_key", api_key)
-        set_setting("openai_api_base", api_base)
-        set_setting("openai_model", model)
-        set_setting("auto_fetch_enabled", "1" if self.auto_fetch_check.isChecked() else "0")
-        set_setting("fetch_interval_hours", str(self.interval_spin.value()))
-        set_setting("max_videos_per_fetch", str(self.max_videos_spin.value()))
-        set_setting("download_path", self.download_path_input.text().strip())
-        set_setting("proxy_url", self.proxy_input.text().strip())
+        # 同步到 .env 文件和内存配置
+        sync_config_to_env('AI_CONFIG', 'api_key', api_key)
+        sync_config_to_env('AI_CONFIG', 'api_base', api_base)
+        sync_config_to_env('AI_CONFIG', 'default_model', model)
+        sync_config_to_env('SCHEDULER_CONFIG', 'auto_fetch_enabled', auto_fetch)
+        sync_config_to_env('SCHEDULER_CONFIG', 'fetch_interval_hours', interval)
+        sync_config_to_env('SCRAPER_CONFIG', 'max_videos_per_fetch', max_videos)
+        sync_config_to_env('SCRAPER_CONFIG', 'download_path', download_path)
+        sync_config_to_env('SCRAPER_CONFIG', 'proxy_url', proxy_url)
+        
+        # 更新内存中的配置
+        AI_CONFIG['api_key'] = api_key
+        AI_CONFIG['api_base'] = api_base
+        AI_CONFIG['default_model'] = model
+        SCHEDULER_CONFIG['auto_fetch_enabled'] = auto_fetch
+        SCHEDULER_CONFIG['fetch_interval_hours'] = interval
+        SCRAPER_CONFIG['max_videos_per_fetch'] = max_videos
+        if download_path:
+            SCRAPER_CONFIG['download_path'] = download_path
+        SCRAPER_CONFIG['proxy_url'] = proxy_url
 
         # 更新AI分析器的API Key、API地址和模型（使用skill模块的update_config方法）
         if api_key or api_base or model:

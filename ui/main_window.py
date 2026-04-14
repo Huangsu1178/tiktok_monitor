@@ -73,21 +73,35 @@ class MainWindow(QMainWindow):
         from core.ai_analyzer import AIAnalyzer
         from core.scheduler import MonitorScheduler
         from core.scraper import FetchTask, MultiPlatformScraper
-        from data.database import get_setting, init_database
+        from data.database import init_database
         from skills import initialize_skills
 
         init_database()
+        
+        print("[MainWindow] 初始化核心模块...")
 
-        proxy_url = get_setting("proxy_url", "")
+        # 从环境变量加载代理配置
+        proxy_url = os.environ.get("PROXY_URL", os.environ.get("HTTP_PROXY", ""))
+        print(f"[MainWindow] 代理配置: {proxy_url or '未设置'}")
         self.scraper = MultiPlatformScraper(proxy_url=proxy_url, headless=True)
         self.fetch_task = FetchTask(self.scraper)
 
-        api_key = get_setting("openai_api_key", "") or os.environ.get("OPENAI_API_KEY", "")
-        api_base = get_setting("openai_api_base", "") or os.environ.get("OPENAI_API_BASE", "")
-        model = get_setting("openai_model", DEFAULT_AI_MODEL)
+        # 从环境变量加载 AI 配置
+        api_key = os.environ.get("OPENAI_API_KEY", "")
+        api_base = os.environ.get("OPENAI_API_BASE", "")
+        model = os.environ.get("OPENAI_MODEL", DEFAULT_AI_MODEL)
+        
+        print(f"[MainWindow] AI配置: api_key={'已设置' if api_key else '未设置'}, api_base={api_base or '默认'}, model={model}")
+        
         self.ai_analyzer = AIAnalyzer(api_key=api_key, api_base=api_base, model=model)
         self.skill_registry = initialize_skills(api_key, api_base, model)
 
+        # 从环境变量加载调度器配置
+        auto_fetch_enabled = os.environ.get("AUTO_FETCH_ENABLED", "0") == "1"
+        fetch_interval = float(os.environ.get("FETCH_INTERVAL", "1"))
+        
+        print(f"[MainWindow] 调度器: auto_fetch={auto_fetch_enabled}, interval={fetch_interval}h")
+        
         self.scheduler = MonitorScheduler()
         self.scheduler.set_status_callback(self._on_scheduler_status)
 
@@ -195,21 +209,21 @@ class MainWindow(QMainWindow):
             self.ai_report_page.refresh()
 
     def _start_scheduler(self):
-        from data.database import get_setting
-
-        auto_fetch = get_setting("auto_fetch_enabled", "0") == "1"
+        # 从环境变量读取调度器配置
+        auto_fetch = os.environ.get("AUTO_FETCH_ENABLED", "0") == "1"
         if auto_fetch:
-            interval = float(get_setting("fetch_interval_hours", "1"))
+            interval = float(os.environ.get("FETCH_INTERVAL", "1"))
             self.scheduler.start()
             self.scheduler.add_global_fetch_job(self.fetch_all_active, interval)
             self.status_label.setText(f"自动监控中 ({interval}h)")
             self.status_label.setStyleSheet(f"color: {SUCCESS}; font-size: 12px; padding: 8px;")
 
     def fetch_all_active(self):
-        from data.database import get_active_influencers, get_setting
+        from data.database import get_active_influencers
 
         influencers = get_active_influencers()
-        max_videos = int(get_setting("max_videos_per_fetch", "20"))
+        # 从环境变量读取最大视频数配置
+        max_videos = int(os.environ.get("MAX_VIDEOS_PER_FETCH", "20"))
         results = []
         for influencer in influencers:
             results.append(self.fetch_task.run(influencer, max_videos))
@@ -218,9 +232,10 @@ class MainWindow(QMainWindow):
 
     def fetch_single(self, influencer: dict):
         from core.platforms import format_account_identity, platform_label
-        from data.database import get_setting
 
-        max_videos = int(get_setting("max_videos_per_fetch", "20"))
+        # 从环境变量读取最大视频数配置
+        max_videos = int(os.environ.get("MAX_VIDEOS_PER_FETCH", "20"))
+        
         account_text = format_account_identity(
             influencer.get("platform"),
             influencer.get("username", ""),
