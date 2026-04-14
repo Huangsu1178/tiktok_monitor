@@ -15,6 +15,8 @@ from PyQt6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QListWidget,
+    QListWidgetItem,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -27,6 +29,8 @@ from ui.theme import (
     ACCENT,
     ACCENT_HOVER,
     BG_PANEL,
+    BG_SURFACE,
+    BG_SURFACE_HOVER,
     BORDER,
     SUCCESS,
     TEAL,
@@ -74,19 +78,37 @@ class AnalysisWorker(QThread):
     finished = pyqtSignal(str, object, object, str)
     failed = pyqtSignal(str)
 
-    def __init__(self, mode: str, analyzer, video=None, videos=None, username: str = ""):
+    def __init__(self, mode: str, analyzer, video=None, videos=None, username: str = "",
+                 group_a_videos=None, group_b_videos=None, group_a_label: str = "", group_b_label: str = ""):
         super().__init__()
         self.mode = mode
         self.analyzer = analyzer
         self.video = video
         self.videos = videos or []
         self.username = username
+        self.group_a_videos = group_a_videos or []
+        self.group_b_videos = group_b_videos or []
+        self.group_a_label = group_a_label
+        self.group_b_label = group_b_label
 
     def run(self):
         try:
             if self.mode == "single":
                 result = self.analyzer.analyze_video(self.video, self.username)
                 self.finished.emit(self.mode, result, self.video, self.username)
+                return
+
+            if self.mode == "ab_comparison":
+                result = self.analyzer.analyze_ab_comparison(
+                    self.group_a_videos, self.group_b_videos,
+                    self.group_a_label, self.group_b_label
+                )
+                self.finished.emit(self.mode, result, {
+                    "group_a_videos": self.group_a_videos,
+                    "group_b_videos": self.group_b_videos,
+                    "group_a_label": self.group_a_label,
+                    "group_b_label": self.group_b_label,
+                }, "")
                 return
 
             result = self.analyzer.analyze_batch(self.videos, self.username)
@@ -170,16 +192,57 @@ class AIReportPage(QWidget):
         self._loading_step = 0
         self._loading_timer = QTimer(self)
         self._loading_timer.timeout.connect(self._tick_loading)
+        # AB对比相关状态
+        self._group_a_videos = []
+        self._group_b_videos = []
+        self._current_ab_tab = "single"  # single, batch, ab_comparison
         self._build_ui()
         self.refresh()
 
     def _build_ui(self):
         self.setStyleSheet(PAGE_STYLE)
-
-        root = QVBoxLayout(self)
+    
+        # 主滚动区域 - 整个界面都在滚动容器中
+        main_scroll = QScrollArea()
+        main_scroll.setWidgetResizable(True)
+        main_scroll.setStyleSheet(
+            """
+            QScrollArea {
+                border: none;
+                background-color: transparent;
+            }
+            QScrollArea > QWidget > QWidget {
+                background-color: transparent;
+            }
+            QScrollBar:vertical {
+                background-color: #152136;
+                width: 10px;
+                border-radius: 5px;
+                margin: 0px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #2f476b;
+                border-radius: 5px;
+                min-height: 30px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #3d5a80;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background-color: transparent;
+            }
+            """
+        )
+            
+        # 主容器
+        main_container = QWidget()
+        root = QVBoxLayout(main_container)
         root.setContentsMargins(24, 24, 24, 24)
         root.setSpacing(18)
-
+    
         header = QFrame()
         header.setStyleSheet(
             """
@@ -194,16 +257,16 @@ class AIReportPage(QWidget):
         header_layout = QVBoxLayout(header)
         header_layout.setContentsMargins(24, 24, 24, 24)
         header_layout.setSpacing(14)
-
+    
         title = QLabel("AI 分析报告中心")
         title.setStyleSheet("color: #f4f8ff; font-size: 28px; font-weight: 800;")
         header_layout.addWidget(title)
-
-        subtitle = QLabel("支持单视频拆解与批量规律分析，分析过程中会展示实时等待状态，结果会自动展示在下方报告区。")
+    
+        subtitle = QLabel("支持单视频拆解与批量规律分析,分析过程中会展示实时等待状态,结果会自动展示在下方报告区。")
         subtitle.setWordWrap(True)
         subtitle.setStyleSheet("color: #bfd0ea; font-size: 14px; line-height: 1.7;")
         header_layout.addWidget(subtitle)
-
+    
         controls = QFrame()
         controls.setStyleSheet(
             """
@@ -217,39 +280,39 @@ class AIReportPage(QWidget):
         controls_layout = QVBoxLayout(controls)
         controls_layout.setContentsMargins(18, 18, 18, 18)
         controls_layout.setSpacing(14)
-
+    
         selectors = QHBoxLayout()
         selectors.setSpacing(12)
-
+    
         self.influencer_combo = QComboBox()
         self.influencer_combo.currentIndexChanged.connect(self._on_influencer_changed)
         selectors.addWidget(self.influencer_combo)
-
+    
         self.video_combo = QComboBox()
         selectors.addWidget(self.video_combo)
-
+    
         refresh_btn = QPushButton("刷新数据")
         refresh_btn.setStyleSheet(secondary_button_style())
         refresh_btn.clicked.connect(self._handle_refresh_clicked)
         selectors.addWidget(refresh_btn)
         selectors.addStretch()
         controls_layout.addLayout(selectors)
-
+    
         actions = QHBoxLayout()
         actions.setSpacing(12)
-
+    
         self.single_btn = QPushButton("单视频分析")
         self.single_btn.setStyleSheet(
             f"QPushButton {{ background-color: {ACCENT}; color: white; }} QPushButton:hover {{ background-color: {ACCENT_HOVER}; }}"
         )
         self.single_btn.clicked.connect(self._run_selected_single_analysis)
         actions.addWidget(self.single_btn)
-
+    
         self.batch_btn = QPushButton("批量规律分析")
         self.batch_btn.setStyleSheet(accent_button_style())
         self.batch_btn.clicked.connect(self._run_selected_batch_analysis)
         actions.addWidget(self.batch_btn)
-
+    
         self.status_badge = QLabel("等待分析")
         self.status_badge.setStyleSheet(
             """
@@ -268,44 +331,290 @@ class AIReportPage(QWidget):
         actions.addStretch()
         controls_layout.addLayout(actions)
         header_layout.addWidget(controls)
-
+    
         root.addWidget(header)
-
+    
         self.tabs_row = QHBoxLayout()
         self.tabs_row.setSpacing(10)
         self.single_tab_btn = QPushButton("单视频报告")
         self.single_tab_btn.clicked.connect(lambda: self._switch_report("single"))
         self.batch_tab_btn = QPushButton("批量规律报告")
         self.batch_tab_btn.clicked.connect(lambda: self._switch_report("batch"))
+        self.ab_tab_btn = QPushButton("AB对比报告")
+        self.ab_tab_btn.clicked.connect(lambda: self._switch_report("ab_comparison"))
         self.tabs_row.addWidget(self.single_tab_btn)
         self.tabs_row.addWidget(self.batch_tab_btn)
+        self.tabs_row.addWidget(self.ab_tab_btn)
         self.tabs_row.addStretch()
         root.addLayout(self.tabs_row)
-
+    
+        # AB对比控制区(默认隐藏)
+        self.ab_controls = self._build_ab_controls()
+        root.addWidget(self.ab_controls)
+    
         self.report_stack = QWidget()
         stack_layout = QVBoxLayout(self.report_stack)
         stack_layout.setContentsMargins(0, 0, 0, 0)
-
+    
         self.single_scroll = self._create_scroll_container()
         self.batch_scroll = self._create_scroll_container()
+        self.ab_scroll = self._create_scroll_container()
         stack_layout.addWidget(self.single_scroll)
         stack_layout.addWidget(self.batch_scroll)
+        stack_layout.addWidget(self.ab_scroll)
         root.addWidget(self.report_stack, 1)
-
+    
         self._render_single_empty()
         self._render_batch_empty()
+        self._render_ab_empty()
+        self._switch_report("single")
+            
+        # 设置主滚动区域
+        main_scroll.setWidget(main_container)
+        main_scroll.setMinimumHeight(800)  # 设置主滚动区域最小高度
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.addWidget(main_scroll)
+        self._render_batch_empty()
+        self._render_ab_empty()
         self._switch_report("single")
 
     def _create_scroll_container(self):
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        content = QWidget()
-        layout = QVBoxLayout(content)
+        """创建报告容器 - 由于主界面已有滚动容器，这里只创建普通容器"""
+        container = QWidget()
+        layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
-        scroll.setWidget(content)
-        scroll._content_layout = layout
-        return scroll
+        container._content_layout = layout
+        return container
+
+    def _build_ab_controls(self):
+        """构建AB对比控制区"""
+        controls = QFrame()
+        controls.setStyleSheet(
+            f"""
+            QFrame {{
+                background-color: {BG_PANEL};
+                border: 1px solid {BORDER};
+                border-radius: 16px;
+            }}
+            """
+        )
+        layout = QVBoxLayout(controls)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(14)
+
+        # 标题
+        title = QLabel("AB分组选择")
+        title.setStyleSheet("color: #f4f8ff; font-size: 16px; font-weight: 700;")
+        layout.addWidget(title)
+
+        # 双组选择区
+        groups_layout = QHBoxLayout()
+        groups_layout.setSpacing(16)
+
+        # A组选择区
+        group_a_widget = self._build_group_selector("A", "#52c58b")
+        self.group_a_combo = group_a_widget.findChild(QComboBox, "group_a_combo")
+        self.group_a_list = group_a_widget.findChild(QListWidget, "group_a_list")
+        self.group_a_count_label = group_a_widget.findChild(QLabel, "group_a_count")
+        groups_layout.addWidget(group_a_widget, 1)
+
+        # VS 标签
+        vs_label = QLabel("VS")
+        vs_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vs_label.setStyleSheet("color: #8fa6c9; font-size: 18px; font-weight: 800; padding: 0 10px;")
+        groups_layout.addWidget(vs_label)
+
+        # B组选择区
+        group_b_widget = self._build_group_selector("B", "#63a4ff")
+        self.group_b_combo = group_b_widget.findChild(QComboBox, "group_b_combo")
+        self.group_b_list = group_b_widget.findChild(QListWidget, "group_b_list")
+        self.group_b_count_label = group_b_widget.findChild(QLabel, "group_b_count")
+        groups_layout.addWidget(group_b_widget, 1)
+
+        layout.addLayout(groups_layout)
+
+        # 分析按钮
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+
+        self.ab_analyze_btn = QPushButton("开始AB对比分析")
+        self.ab_analyze_btn.setStyleSheet(
+            f"""
+            QPushButton {{
+                background-color: {VIOLET};
+                color: white;
+                border: none;
+                border-radius: 10px;
+                padding: 12px 24px;
+                font-size: 14px;
+                font-weight: 700;
+            }}
+            QPushButton:hover {{
+                background-color: #92a0ff;
+            }}
+            """
+        )
+        self.ab_analyze_btn.clicked.connect(self._run_ab_comparison)
+        btn_layout.addWidget(self.ab_analyze_btn)
+        btn_layout.addStretch()
+
+        layout.addLayout(btn_layout)
+
+        controls.setVisible(False)
+        return controls
+
+    def _build_group_selector(self, group_name: str, accent_color: str):
+        """构建单个分组选择器（A组或B组）"""
+        widget = QFrame()
+        widget.setStyleSheet(
+            f"""
+            QFrame {{
+                background-color: #0d1522;
+                border: 1px solid {BORDER};
+                border-left: 3px solid {accent_color};
+                border-radius: 12px;
+            }}
+            """
+        )
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
+
+        # 组标题
+        header = QLabel(f"{group_name}组")
+        header.setStyleSheet(f"color: {accent_color}; font-size: 14px; font-weight: 700;")
+        layout.addWidget(header)
+
+        # 博主选择下拉框
+        combo = QComboBox()
+        combo.setObjectName(f"group_{group_name.lower()}_combo")
+        combo.setStyleSheet(input_style(200))
+        combo.addItem(f"选择{group_name}组博主", None)
+        combo.currentIndexChanged.connect(lambda idx, g=group_name: self._on_group_influencer_changed(g, idx))
+        layout.addWidget(combo)
+
+        # 视频多选列表 - 支持滚动
+        list_widget = QListWidget()
+        list_widget.setObjectName(f"group_{group_name.lower()}_list")
+        list_widget.setStyleSheet(
+            f"""
+            QListWidget {{
+                background-color: {BG_PANEL};
+                border: 1px solid {BORDER};
+                border-radius: 8px;
+                color: {TEXT_PRIMARY};
+                font-size: 12px;
+            }}
+            QListWidget::item {{
+                padding: 6px 8px;
+                border-bottom: 1px solid {BORDER};
+            }}
+            QListWidget::item:hover {{
+                background-color: {BG_SURFACE};
+            }}
+            QListWidget::item:selected {{
+                background-color: {BG_SURFACE_HOVER};
+            }}
+            QScrollBar:vertical {{
+                background-color: #152136;
+                width: 6px;
+                border-radius: 3px;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: #2f476b;
+                border-radius: 3px;
+                min-height: 15px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: #3d5a80;
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+                background-color: transparent;
+            }}
+            """
+        )
+        list_widget.setMaximumHeight(150)  # 稍微减小以容纳更多内容
+        list_widget.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
+        list_widget.itemChanged.connect(lambda item, g=group_name: self._on_group_video_selection_changed(g))
+        layout.addWidget(list_widget)
+
+        # 已选数量标签
+        count_label = QLabel("已选: 0")
+        count_label.setObjectName(f"group_{group_name.lower()}_count")
+        count_label.setStyleSheet("color: #8fa6c9; font-size: 12px;")
+        layout.addWidget(count_label)
+
+        return widget
+
+    def _on_group_influencer_changed(self, group: str, index: int):
+        """当AB分组的博主选择改变时"""
+        from data.database import get_videos_by_influencer
+
+        combo = self.group_a_combo if group == "A" else self.group_b_combo
+        list_widget = self.group_a_list if group == "A" else self.group_b_list
+        count_label = self.group_a_count_label if group == "A" else self.group_b_count_label
+
+        influencer = combo.itemData(index)
+        list_widget.clear()
+
+        if influencer:
+            videos = get_videos_by_influencer(influencer["id"], 50)
+            for video in videos:
+                desc = (video.get("description") or video.get("title") or "无描述").replace("\n", " ")
+                label = f"{desc[:40]}{'...' if len(desc) > 40 else ''}"
+                item = QListWidgetItem(label)
+                item.setData(Qt.ItemDataRole.UserRole, video)
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                item.setCheckState(Qt.CheckState.Unchecked)
+                list_widget.addItem(item)
+
+        count_label.setText("已选: 0")
+
+    def _on_group_video_selection_changed(self, group: str):
+        """当AB分组的视频选择改变时"""
+        list_widget = self.group_a_list if group == "A" else self.group_b_list
+        count_label = self.group_a_count_label if group == "A" else self.group_b_count_label
+
+        selected_count = 0
+        for i in range(list_widget.count()):
+            item = list_widget.item(i)
+            if item.checkState() == Qt.CheckState.Checked:
+                selected_count += 1
+
+        count_label.setText(f"已选: {selected_count}")
+
+    def _get_selected_group_videos(self, group: str) -> list:
+        """获取指定组选中的视频列表"""
+        list_widget = self.group_a_list if group == "A" else self.group_b_list
+        videos = []
+        for i in range(list_widget.count()):
+            item = list_widget.item(i)
+            if item.checkState() == Qt.CheckState.Checked:
+                video = item.data(Qt.ItemDataRole.UserRole)
+                if video:
+                    videos.append(video)
+        return videos
+
+    def _refresh_ab_controls(self):
+        """刷新AB对比控制区的博主列表"""
+        from data.database import get_all_influencers
+        from core.platforms import platform_label
+
+        influencers = get_all_influencers()
+
+        for combo in [self.group_a_combo, self.group_b_combo]:
+            combo.blockSignals(True)
+            combo.clear()
+            combo.addItem("选择博主", None)
+            for influencer in influencers:
+                label = f"{platform_label(influencer.get('platform'))} | @{influencer['username']}"
+                combo.addItem(label, influencer)
+            combo.blockSignals(False)
 
     def _set_scroll_content(self, scroll: QScrollArea, widgets):
         layout = scroll._content_layout
@@ -318,14 +627,27 @@ class AIReportPage(QWidget):
         layout.addStretch()
 
     def _switch_report(self, mode: str):
+        self._current_ab_tab = mode
         single_active = mode == "single"
+        batch_active = mode == "batch"
+        ab_active = mode == "ab_comparison"
+
         self.single_scroll.setVisible(single_active)
-        self.batch_scroll.setVisible(not single_active)
+        self.batch_scroll.setVisible(batch_active)
+        self.ab_scroll.setVisible(ab_active)
+
+        # 控制区显示/隐藏
+        self.ab_controls.setVisible(ab_active)
 
         active_style = f"QPushButton {{ background-color: {TEXT_PRIMARY}; color: #0d1730; }}"
         idle_style = f"QPushButton {{ background-color: {BG_PANEL}; color: {TEXT_SECONDARY}; border: 1px solid {BORDER}; }} QPushButton:hover {{ background-color: #17243a; }}"
         self.single_tab_btn.setStyleSheet(active_style if single_active else idle_style)
-        self.batch_tab_btn.setStyleSheet(active_style if not single_active else idle_style)
+        self.batch_tab_btn.setStyleSheet(active_style if batch_active else idle_style)
+        self.ab_tab_btn.setStyleSheet(active_style if ab_active else idle_style)
+
+        # 当切换到AB对比Tab时，刷新博主列表
+        if ab_active:
+            self._refresh_ab_controls()
 
     def _is_external_batch_context(self) -> bool:
         return bool(self._external_batch_context)
@@ -537,13 +859,19 @@ class AIReportPage(QWidget):
         )
         self._start_worker("batch", videos=videos, username=username)
 
-    def _start_worker(self, mode: str, video=None, videos=None, username: str = ""):
+    def _start_worker(self, mode: str, video=None, videos=None, username: str = "",
+                        group_a_videos=None, group_b_videos=None, group_a_label: str = "", group_b_label: str = ""):
         if self._worker and self._worker.isRunning():
             self._show_status("已有分析任务正在执行，请稍候完成后再发起新任务", "#ffb86b")
             return
 
         self._set_busy(True, mode)
-        self._worker = AnalysisWorker(mode, self.main_window.ai_analyzer, video=video, videos=videos, username=username)
+        self._worker = AnalysisWorker(
+            mode, self.main_window.ai_analyzer,
+            video=video, videos=videos, username=username,
+            group_a_videos=group_a_videos, group_b_videos=group_b_videos,
+            group_a_label=group_a_label, group_b_label=group_b_label
+        )
         self._worker.finished.connect(self._handle_analysis_result)
         self._worker.failed.connect(self._handle_analysis_error)
         self._worker.start()
@@ -563,6 +891,23 @@ class AIReportPage(QWidget):
             self._show_status("单视频分析已完成", "#6fe0a9")
             return
 
+        if mode == "ab_comparison":
+            from data.database import save_ab_comparison
+
+            group_a_videos = payload.get("group_a_videos", [])
+            group_b_videos = payload.get("group_b_videos", [])
+            group_a_label = payload.get("group_a_label", "A组")
+            group_b_label = payload.get("group_b_label", "B组")
+
+            # 保存到数据库
+            group_a_ids = [v["id"] for v in group_a_videos]
+            group_b_ids = [v["id"] for v in group_b_videos]
+            save_ab_comparison(group_a_ids, group_b_ids, result, group_a_label, group_b_label)
+
+            self.show_ab_comparison(result, group_a_label, group_b_label)
+            self._show_status("AB对比分析已完成", "#6fe0a9")
+            return
+
         self.show_batch_analysis(result, username)
         self._show_status("批量规律分析已完成", "#6fe0a9")
 
@@ -572,6 +917,8 @@ class AIReportPage(QWidget):
         error_state = EmptyState("分析失败", error or "未知错误")
         if self.single_scroll.isVisible():
             self._set_scroll_content(self.single_scroll, [error_state])
+        elif self.ab_scroll.isVisible():
+            self._set_scroll_content(self.ab_scroll, [error_state])
         else:
             self._set_scroll_content(self.batch_scroll, [error_state])
 
@@ -586,8 +933,20 @@ class AIReportPage(QWidget):
             self.video_combo.setEnabled(not busy)
             self.single_btn.setEnabled(not busy)
 
+        # AB对比控制区状态
+        self.ab_analyze_btn.setEnabled(not busy)
+        self.group_a_combo.setEnabled(not busy)
+        self.group_b_combo.setEnabled(not busy)
+        self.group_a_list.setEnabled(not busy)
+        self.group_b_list.setEnabled(not busy)
+
         if busy:
-            self._loading_base = "单视频分析中" if mode == "single" else "批量规律分析中"
+            if mode == "single":
+                self._loading_base = "单视频分析中"
+            elif mode == "ab_comparison":
+                self._loading_base = "AB对比分析中"
+            else:
+                self._loading_base = "批量规律分析中"
             self._loading_step = 0
             self._loading_timer.start(380)
             self._tick_loading()
@@ -640,6 +999,9 @@ class AIReportPage(QWidget):
         if mode == "single":
             self._set_scroll_content(self.single_scroll, [panel])
             self._switch_report("single")
+        elif mode == "ab_comparison":
+            self._set_scroll_content(self.ab_scroll, [panel])
+            self._switch_report("ab_comparison")
         else:
             self._set_scroll_content(self.batch_scroll, [panel])
             self._switch_report("batch")
@@ -661,11 +1023,56 @@ class AIReportPage(QWidget):
             [
                 EmptyState(
                     "批量规律分析",
-                    "选择博主后点击“批量规律分析”，系统会基于当前范围内表现最好的视频总结爆款规律与创作公式。",
+                    "选择博主后点击\"批量规律分析\"，系统会基于当前范围内表现最好的视频总结爆款规律与创作公式。",
                 )
             ],
         )
-
+    
+    def _render_ab_empty(self):
+        self._set_scroll_content(
+            self.ab_scroll,
+            [
+                EmptyState(
+                    "AB对比分析",
+                    "选择两组视频进行对比分析，找出表现差异的根本原因和优化建议。",
+                )
+            ],
+        )
+    
+    def _run_ab_comparison(self):
+        """执行AB对比分析"""
+        group_a_videos = self._get_selected_group_videos("A")
+        group_b_videos = self._get_selected_group_videos("B")
+    
+        # 验证两组都至少选择了1个视频
+        if not group_a_videos:
+            self._show_status("请至少选择1个A组视频", "#ffb86b")
+            return
+        if not group_b_videos:
+            self._show_status("请至少选择1个B组视频", "#ffb86b")
+            return
+    
+        # 获取组标签
+        group_a_label = "A组"
+        group_b_label = "B组"
+        if self.group_a_combo.currentData():
+            group_a_label = self.group_a_combo.currentData().get("username", "A组")
+        if self.group_b_combo.currentData():
+            group_b_label = self.group_b_combo.currentData().get("username", "B组")
+    
+        self._render_loading(
+            mode="ab_comparison",
+            title="正在进行AB对比分析",
+            desc="正在对比两组视频的表现差异、分析原因并生成优化建议，请稍候。",
+        )
+        self._start_worker(
+            "ab_comparison",
+            group_a_videos=group_a_videos,
+            group_b_videos=group_b_videos,
+            group_a_label=group_a_label,
+            group_b_label=group_b_label,
+        )
+    
     def show_analysis(self, video: dict, analysis: dict, username: str = ""):
         desc = video.get("description") or video.get("title") or "无描述"
         subject = self._get_subject_label(username)
@@ -1242,4 +1649,524 @@ class AIReportPage(QWidget):
                 content_layout.addWidget(line_label)
 
         layout.addWidget(content_frame)
+        return container
+
+    def show_ab_comparison(self, result: dict, group_a_label: str = "A组", group_b_label: str = "B组"):
+        """渲染AB对比分析报告"""
+        widgets = []
+
+        # 4.1 标题英雄区
+        winner = result.get("winner", "")
+        winner_badge = ""
+        if winner == "A":
+            winner_badge = f"🏆 {group_a_label} 胜出"
+        elif winner == "B":
+            winner_badge = f"🏆 {group_b_label} 胜出"
+        else:
+            winner_badge = "🤝 两组持平"
+
+        hero = self._build_ab_hero(group_a_label, group_b_label, winner_badge, winner)
+        widgets.append(hero)
+
+        # 4.2 双组概览区
+        overview = self._build_ab_overview(result, group_a_label, group_b_label, winner)
+        widgets.append(overview)
+
+        # 4.3 胜出原因区
+        winner_reason = result.get("winner_reason", "")
+        if winner_reason:
+            reason_widget = self._build_winner_reason(winner_reason, winner)
+            widgets.append(reason_widget)
+
+        # 4.4 逐维度对比区
+        dimension_comparisons = result.get("dimension_comparisons", [])
+        if dimension_comparisons:
+            dim_section = self._build_dimension_comparison_section(dimension_comparisons, group_a_label, group_b_label)
+            widgets.append(dim_section)
+
+        # 4.5 S.T.A.R.T框架对比区
+        start_comparison = result.get("start_comparison", {})
+        if start_comparison:
+            start_widget = self._build_ab_start_comparison(start_comparison, group_a_label, group_b_label)
+            widgets.append(start_widget)
+
+        # 4.6 根本原因分析区
+        root_causes = result.get("root_causes", [])
+        if root_causes:
+            root_causes_widget = self._build_root_causes_section(root_causes)
+            widgets.append(root_causes_widget)
+
+        # 4.7 优化建议区
+        optimization_suggestions = result.get("optimization_suggestions", [])
+        if optimization_suggestions:
+            suggestions_widget = self._build_optimization_suggestions(optimization_suggestions)
+            widgets.append(suggestions_widget)
+
+        # 4.8 优化版仿写脚本区
+        script_template = result.get("script_template", "")
+        if script_template:
+            script_widget = self._build_script_template_widget(script_template)
+            widgets.append(script_widget)
+
+        self._set_scroll_content(self.ab_scroll, widgets)
+        self._switch_report("ab_comparison")
+
+    def _build_ab_hero(self, group_a_label: str, group_b_label: str, winner_badge: str, winner: str):
+        """构建AB对比报告标题英雄区"""
+        frame = QFrame()
+        accent_color = "#ffd700" if winner else "#8fa6c9"
+        frame.setStyleSheet(card_style(accent_color))
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(22, 20, 22, 20)
+        layout.setSpacing(10)
+
+        # 大标题
+        title = QLabel("AB对比分析报告")
+        title.setStyleSheet("color: #f3f7ff; font-size: 28px; font-weight: 800;")
+        layout.addWidget(title)
+
+        # 副标题
+        subtitle = QLabel(f"{group_a_label} vs {group_b_label}")
+        subtitle.setStyleSheet("color: #8fa6c9; font-size: 16px; font-weight: 600;")
+        layout.addWidget(subtitle)
+
+        # 胜出方徽章
+        badge = QLabel(winner_badge)
+        badge.setStyleSheet(
+            f"""
+            QLabel {{
+                background-color: {accent_color}22;
+                color: {accent_color};
+                border: 1px solid {accent_color}44;
+                border-radius: 12px;
+                padding: 8px 16px;
+                font-size: 14px;
+                font-weight: 700;
+            }}
+            """
+        )
+        badge.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        layout.addWidget(badge)
+
+        return frame
+
+    def _build_ab_overview(self, result: dict, group_a_label: str, group_b_label: str, winner: str):
+        """构建双组概览区（左右并排两个卡片）"""
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
+
+        # A组概览
+        group_a_data = result.get("group_a_overview", {})
+        a_border_color = "#52c58b" if winner == "A" else BORDER
+        a_card = self._build_group_overview_card(group_a_label, group_a_data, a_border_color, winner == "A")
+        layout.addWidget(a_card, 1)
+
+        # B组概览
+        group_b_data = result.get("group_b_overview", {})
+        b_border_color = "#63a4ff" if winner == "B" else BORDER
+        b_card = self._build_group_overview_card(group_b_label, group_b_data, b_border_color, winner == "B")
+        layout.addWidget(b_card, 1)
+
+        return container
+
+    def _build_group_overview_card(self, label: str, data: dict, border_color: str, is_winner: bool):
+        """构建单个组的概览卡片"""
+        frame = QFrame()
+        frame.setStyleSheet(
+            f"""
+            QFrame {{
+                background-color: {BG_PANEL};
+                border: 2px solid {border_color};
+                border-radius: 16px;
+            }}
+            """
+        )
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(12)
+
+        # 组标题
+        header = QLabel(label)
+        header.setStyleSheet(f"color: {border_color}; font-size: 16px; font-weight: 700;")
+        layout.addWidget(header)
+
+        # 胜出标记
+        if is_winner:
+            winner_label = QLabel("🏆 胜出")
+            winner_label.setStyleSheet(
+                f"""
+                QLabel {{
+                    background-color: #ffd70022;
+                    color: #ffd700;
+                    border: 1px solid #ffd70044;
+                    border-radius: 8px;
+                    padding: 4px 10px;
+                    font-size: 12px;
+                    font-weight: 700;
+                }}
+                """
+            )
+            winner_label.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+            layout.addWidget(winner_label)
+
+        # 指标网格
+        metrics_grid = QGridLayout()
+        metrics_grid.setSpacing(8)
+
+        metrics = [
+            ("平均播放量", self._format_number(data.get("avg_plays", 0)), "#ffb86b"),
+            ("平均互动率", f"{data.get('avg_engagement_rate', 0)}%", "#6fe0a9"),
+        ]
+
+        for idx, (metric_label, value, color) in enumerate(metrics):
+            metric_frame = QFrame()
+            metric_frame.setStyleSheet(
+                f"""
+                QFrame {{
+                    background-color: #0d1522;
+                    border-radius: 8px;
+                }}
+                """
+            )
+            metric_layout = QVBoxLayout(metric_frame)
+            metric_layout.setContentsMargins(10, 8, 10, 8)
+            metric_layout.setSpacing(4)
+
+            label_widget = QLabel(metric_label)
+            label_widget.setStyleSheet("color: #8fa6c9; font-size: 11px;")
+            metric_layout.addWidget(label_widget)
+
+            value_widget = QLabel(value)
+            value_widget.setStyleSheet(f"color: {color}; font-size: 16px; font-weight: 700;")
+            metric_layout.addWidget(value_widget)
+
+            metrics_grid.addWidget(metric_frame, idx // 2, idx % 2)
+
+        layout.addLayout(metrics_grid)
+
+        # 主要钩子类型
+        hook_type = data.get("hook_type", "")
+        if hook_type:
+            hook_widget = QLabel(f"主要钩子: {hook_type}")
+            hook_widget.setStyleSheet("color: #c6d5ea; font-size: 13px;")
+            layout.addWidget(hook_widget)
+
+        # 内容模式
+        content_pattern = data.get("content_pattern", "")
+        if content_pattern:
+            pattern_widget = QLabel(f"内容模式: {content_pattern}")
+            pattern_widget.setStyleSheet("color: #c6d5ea; font-size: 13px;")
+            layout.addWidget(pattern_widget)
+
+        # 优势列表
+        strengths = data.get("strengths", [])[:3]
+        if strengths:
+            strengths_title = QLabel("核心优势")
+            strengths_title.setStyleSheet("color: #8fa6c9; font-size: 12px; margin-top: 8px;")
+            layout.addWidget(strengths_title)
+
+            for strength in strengths:
+                strength_label = QLabel(f"• {strength}")
+                strength_label.setStyleSheet("color: #e6eefb; font-size: 12px; line-height: 1.5;")
+                strength_label.setWordWrap(True)
+                layout.addWidget(strength_label)
+
+        return frame
+
+    def _build_winner_reason(self, reason: str, winner: str):
+        """构建胜出原因区"""
+        frame = QFrame()
+        accent = "#ffd700" if winner else "#8fa6c9"
+        frame.setStyleSheet(
+            f"""
+            QFrame {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #1a2a1a, stop:1 #1a2a3a);
+                border: 1px solid {accent}44;
+                border-radius: 16px;
+            }}
+            """
+        )
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setSpacing(10)
+
+        title = QLabel("胜出关键因素")
+        title.setStyleSheet(f"color: {accent}; font-size: 14px; font-weight: 700;")
+        layout.addWidget(title)
+
+        reason_label = QLabel(reason)
+        reason_label.setWordWrap(True)
+        reason_label.setStyleSheet("color: #f3f7ff; font-size: 18px; font-weight: 600; line-height: 1.6;")
+        layout.addWidget(reason_label)
+
+        return frame
+
+    def _build_dimension_comparison_section(self, comparisons: list, group_a_label: str, group_b_label: str):
+        """构建逐维度对比区"""
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        # 区域标题
+        title = QLabel("逐维度对比分析")
+        title.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
+        layout.addWidget(title)
+
+        for comp in comparisons:
+            card = self._build_dimension_card(comp, group_a_label, group_b_label)
+            layout.addWidget(card)
+
+        return container
+
+    def _build_dimension_card(self, comp: dict, group_a_label: str, group_b_label: str):
+        """构建单个维度对比卡片"""
+        dimension = comp.get("dimension", "")
+        a_performance = comp.get("group_a_performance", "")
+        b_performance = comp.get("group_b_performance", "")
+        gap_analysis = comp.get("gap_analysis", "")
+        verdict = comp.get("verdict", "")
+
+        frame = QFrame()
+        frame.setStyleSheet(card_style())
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(10)
+
+        # 维度名称和判定
+        header = QHBoxLayout()
+        dim_label = QLabel(dimension)
+        dim_label.setStyleSheet("color: #f3f7ff; font-size: 14px; font-weight: 700;")
+        header.addWidget(dim_label)
+        header.addStretch()
+
+        # 判定标签
+        if verdict == "A优":
+            verdict_style = "background-color: #52c58b22; color: #52c58b; border: 1px solid #52c58b44;"
+        elif verdict == "B优":
+            verdict_style = "background-color: #63a4ff22; color: #63a4ff; border: 1px solid #63a4ff44;"
+        else:
+            verdict_style = "background-color: #8fa6c922; color: #8fa6c9; border: 1px solid #8fa6c944;"
+
+        verdict_label = QLabel(verdict)
+        verdict_label.setStyleSheet(
+            f"""
+            QLabel {{
+                {verdict_style}
+                border-radius: 6px;
+                padding: 4px 10px;
+                font-size: 12px;
+                font-weight: 700;
+            }}
+            """
+        )
+        header.addWidget(verdict_label)
+        layout.addLayout(header)
+
+        # 两组表现
+        perf_layout = QHBoxLayout()
+        perf_layout.setSpacing(12)
+
+        a_widget = QLabel(f"{group_a_label}: {a_performance}")
+        a_widget.setStyleSheet("color: #52c58b; font-size: 13px;")
+        a_widget.setWordWrap(True)
+        perf_layout.addWidget(a_widget, 1)
+
+        b_widget = QLabel(f"{group_b_label}: {b_performance}")
+        b_widget.setStyleSheet("color: #63a4ff; font-size: 13px;")
+        b_widget.setWordWrap(True)
+        perf_layout.addWidget(b_widget, 1)
+
+        layout.addLayout(perf_layout)
+
+        # 差距分析
+        if gap_analysis:
+            gap_label = QLabel(f"差距分析: {gap_analysis}")
+            gap_label.setStyleSheet("color: #8fa6c9; font-size: 12px; font-style: italic;")
+            gap_label.setWordWrap(True)
+            layout.addWidget(gap_label)
+
+        return frame
+
+    def _build_ab_start_comparison(self, start_comparison: dict, group_a_label: str, group_b_label: str):
+        """构建S.T.A.R.T框架对比区"""
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        # 区域标题
+        title = QLabel("S.T.A.R.T 框架对比")
+        title.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
+        layout.addWidget(title)
+
+        # S.T.A.R.T 阶段定义
+        start_stages = [
+            ("S", "Stop · 钩子", "stop", "#ff6b6b"),
+            ("T", "Tension · 悬念", "tension", "#ffa94d"),
+            ("A", "Authority · 信任", "authority", "#51cf66"),
+            ("R", "Reveal · 交付", "reveal", "#339af0"),
+            ("T", "Transfer · 引导", "transfer", "#cc5de8"),
+        ]
+
+        for letter, stage_name, key, color in start_stages:
+            stage_data = start_comparison.get(key, {})
+            if not stage_data:
+                continue
+
+            card = QFrame()
+            card.setStyleSheet(
+                f"""
+                QFrame {{
+                    background-color: {BG_PANEL};
+                    border: 1px solid {BORDER};
+                    border-left: 4px solid {color};
+                    border-radius: 12px;
+                }}
+                """
+            )
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(16, 14, 16, 14)
+            card_layout.setSpacing(10)
+
+            # 阶段标题
+            stage_title = QLabel(f"{letter} · {stage_name}")
+            stage_title.setStyleSheet(f"color: {color}; font-size: 14px; font-weight: 700;")
+            card_layout.addWidget(stage_title)
+
+            # 两组对比
+            comparison_layout = QHBoxLayout()
+            comparison_layout.setSpacing(12)
+
+            a_content = stage_data.get("group_a", "暂无数据")
+            a_widget = QLabel(f"{group_a_label}: {a_content}")
+            a_widget.setStyleSheet("color: #52c58b; font-size: 13px; line-height: 1.5;")
+            a_widget.setWordWrap(True)
+            comparison_layout.addWidget(a_widget, 1)
+
+            b_content = stage_data.get("group_b", "暂无数据")
+            b_widget = QLabel(f"{group_b_label}: {b_content}")
+            b_widget.setStyleSheet("color: #63a4ff; font-size: 13px; line-height: 1.5;")
+            b_widget.setWordWrap(True)
+            comparison_layout.addWidget(b_widget, 1)
+
+            card_layout.addLayout(comparison_layout)
+
+            # 判定
+            verdict = stage_data.get("verdict", "")
+            if verdict:
+                if verdict == "A优":
+                    verdict_color = "#52c58b"
+                elif verdict == "B优":
+                    verdict_color = "#63a4ff"
+                else:
+                    verdict_color = "#8fa6c9"
+
+                verdict_label = QLabel(f"判定: {verdict}")
+                verdict_label.setStyleSheet(f"color: {verdict_color}; font-size: 12px; font-weight: 700;")
+                card_layout.addWidget(verdict_label)
+
+            layout.addWidget(card)
+
+        return container
+
+    def _build_root_causes_section(self, root_causes: list):
+        """构建根本原因分析区"""
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        # 区域标题
+        title = QLabel("根本原因分析")
+        title.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
+        layout.addWidget(title)
+
+        for idx, cause in enumerate(root_causes[:3], 1):
+            card = AnalysisCard(f"原因 {idx}", cause, "#ff7b65")
+            layout.addWidget(card)
+
+        return container
+
+    def _build_optimization_suggestions(self, suggestions: list):
+        """构建优化建议区"""
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        # 区域标题
+        title = QLabel("优化建议")
+        title.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
+        layout.addWidget(title)
+
+        priority_colors = {
+            "高": ("#f47f8b", "#f47f8b22"),
+            "中": ("#f2b265", "#f2b26522"),
+            "低": ("#52c58b", "#52c58b22"),
+        }
+
+        for suggestion in suggestions[:5]:
+            if isinstance(suggestion, dict):
+                content = suggestion.get("suggestion", "")
+                priority = suggestion.get("priority", "中")
+                impact = suggestion.get("expected_impact", "")
+            else:
+                content = str(suggestion)
+                priority = "中"
+                impact = ""
+
+            color, bg_color = priority_colors.get(priority, ("#f2b265", "#f2b26522"))
+
+            card = QFrame()
+            card.setStyleSheet(
+                f"""
+                QFrame {{
+                    background-color: {bg_color};
+                    border: 1px solid {color}44;
+                    border-radius: 12px;
+                }}
+                """
+            )
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(16, 14, 16, 14)
+            card_layout.setSpacing(8)
+
+            # 优先级标签
+            header = QHBoxLayout()
+            priority_label = QLabel(f"优先级: {priority}")
+            priority_label.setStyleSheet(
+                f"""
+                QLabel {{
+                    background-color: {color}33;
+                    color: {color};
+                    border-radius: 6px;
+                    padding: 3px 10px;
+                    font-size: 11px;
+                    font-weight: 700;
+                }}
+                """
+            )
+            header.addWidget(priority_label)
+            header.addStretch()
+            card_layout.addLayout(header)
+
+            # 建议内容
+            content_label = QLabel(content)
+            content_label.setWordWrap(True)
+            content_label.setStyleSheet("color: #e6eefb; font-size: 14px; line-height: 1.6;")
+            card_layout.addWidget(content_label)
+
+            # 预期影响
+            if impact:
+                impact_label = QLabel(f"预期影响: {impact}")
+                impact_label.setStyleSheet("color: #8fa6c9; font-size: 12px; font-style: italic;")
+                impact_label.setWordWrap(True)
+                card_layout.addWidget(impact_label)
+
+            layout.addWidget(card)
+
         return container

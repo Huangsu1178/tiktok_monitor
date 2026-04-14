@@ -69,10 +69,10 @@ class SkillRegistry:
             SkillInfo(
                 skill_id="ai_analysis",
                 name="AI 视频分析",
-                description="深度分析 TikTok 视频的流量钩子（8维度分析）",
+                description="深度分析 TikTok 视频的流量钩子（8维度分析），支持 AB 对比分析",
                 category="analysis",
                 requires_api=True,
-                tags=["视频分析", "钩子识别", "AI"]
+                tags=["视频分析", "钩子识别", "AI", "ab_comparison"]
             ),
             TikTokAIAnalysisSkill
         )

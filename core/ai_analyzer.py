@@ -39,4 +39,8 @@ class AIAnalyzer(TikTokAIAnalysisSkill):
         """向后兼容：调用新的analyze_batch_videos方法"""
         return self.analyze_batch_videos(videos, username)
 
+    def analyze_ab(self, group_a, group_b, **kwargs):
+        """向后兼容的AB对比分析接口"""
+        return self.analyze_ab_comparison(group_a, group_b, **kwargs)
+
 
