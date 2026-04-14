@@ -138,6 +138,7 @@ AI_CONFIG = {
     "temperature": 0.7,
     "max_tokens": 8192,  # 单视频分析（适配 thinking model 需要更大配额）
     "max_tokens_batch": 16384,  # 批量分析需要更多输出空间（适配 thinking model）
+    "max_tokens_ab_comparison": 16384,  # AB对比分析需要大量输出空间
     "max_tokens_competitor": 2000,
     "max_tokens_trend": 1500,
     "max_tokens_hook_tag": 1000,

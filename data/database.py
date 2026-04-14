@@ -2,6 +2,7 @@
 TikTok Monitor - Database Module
 SQLite 数据库管理，支持 TikTok / 抖音双平台账号、视频与分析结果存储
 """
+import json
 import os
 import sqlite3
 import sys
@@ -253,6 +254,21 @@ def _ensure_schema(conn):
             content_structure TEXT,
             replication_suggestions TEXT,
             created_at TEXT DEFAULT (datetime('now'))
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS ab_comparison (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_a_video_ids TEXT,
+            group_b_video_ids TEXT,
+            group_a_label TEXT DEFAULT 'A组',
+            group_b_label TEXT DEFAULT 'B组',
+            winner TEXT,
+            comparison_result TEXT,
+            analyzed_at TEXT DEFAULT (datetime('now'))
         )
         """
     )
@@ -634,3 +650,90 @@ def get_hook_statistics():
         "total_hooks": total["count"] if total else 0,
         "by_type": [dict(r) for r in type_stats],
     }
+
+
+def save_ab_comparison(
+    group_a_ids: list,
+    group_b_ids: list,
+    result: dict,
+    group_a_label: str = "A组",
+    group_b_label: str = "B组",
+) -> int:
+    """保存AB对比分析结果，返回记录ID"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        group_a_video_ids = ",".join(str(vid) for vid in group_a_ids) if group_a_ids else ""
+        group_b_video_ids = ",".join(str(vid) for vid in group_b_ids) if group_b_ids else ""
+        winner = result.get("winner", "")
+        comparison_result = json.dumps(result, ensure_ascii=False)
+
+        cursor.execute(
+            """
+            INSERT INTO ab_comparison
+            (group_a_video_ids, group_b_video_ids, group_a_label, group_b_label, winner, comparison_result)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                group_a_video_ids,
+                group_b_video_ids,
+                group_a_label,
+                group_b_label,
+                winner,
+                comparison_result,
+            ),
+        )
+        conn.commit()
+        row_id = cursor.lastrowid
+        return row_id
+    except Exception as e:
+        print(f"[DB] 保存AB对比分析失败: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
+def get_ab_comparisons(limit: int = 20) -> list:
+    """获取历史AB对比记录列表，按时间倒序"""
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, group_a_label, group_b_label, winner, analyzed_at
+            FROM ab_comparison
+            ORDER BY analyzed_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        print(f"[DB] 获取AB对比记录列表失败: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def get_ab_comparison(comparison_id: int) -> dict:
+    """获取单条AB对比详情，包含完整的comparison_result（反序列化为dict）"""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM ab_comparison WHERE id=?",
+            (comparison_id,),
+        ).fetchone()
+        if not row:
+            return None
+
+        result = dict(row)
+        if result.get("comparison_result"):
+            try:
+                result["comparison_result"] = json.loads(result["comparison_result"])
+            except json.JSONDecodeError:
+                result["comparison_result"] = {}
+        return result
+    except Exception as e:
+        print(f"[DB] 获取AB对比详情失败: {e}")
+        return None
+    finally:
+        conn.close()

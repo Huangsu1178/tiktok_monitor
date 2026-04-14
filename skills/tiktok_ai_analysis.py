@@ -14,6 +14,7 @@ from config import AI_CONFIG
 
 from .ai_client import AIClientMixin
 from .prompts import (
+    AB_COMPARISON_PROMPT,
     BATCH_ANALYSIS_PROMPT,
     COMPETITOR_ANALYSIS_PROMPT,
     HOOK_ANALYSIS_PROMPT,
@@ -432,4 +433,353 @@ class TikTokAIAnalysisSkill(AIClientMixin):
             "content_goal": "提升停留与点击",
             "audience_stage": "冷启动",
             "risk_level": "low",
+        }
+
+    def analyze_ab_comparison(self, group_a_videos: list, group_b_videos: list,
+                              group_a_label: str = "A组",
+                              group_b_label: str = "B组") -> dict:
+        """AB对比分析：分析两组视频的表现差异、原因和优化建议"""
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        start_time = time.time()
+        print(f"[AI Analysis] [{timestamp}] AB对比分析 | A组: {len(group_a_videos)}个 | B组: {len(group_b_videos)}个")
+        print(f"[AI Analysis] 开始AB对比分析: {group_a_label} vs {group_b_label}")
+
+        if not self.is_available():
+            print("[AI Analysis] ⚠️ AI服务不可用，使用模拟AB对比分析")
+            return self._mock_ab_comparison(group_a_videos, group_b_videos, group_a_label, group_b_label)
+
+        print(f"[AI Analysis] 准备AB对比分析数据...")
+        # 准备A组视频摘要
+        group_a_data = "\n".join(
+            [
+                (
+                    f"{i}. 描述：{v.get('description', v.get('title', ''))[:80]} | "
+                    f"播放：{v.get('play_count', 0):,} | 点赞：{v.get('like_count', 0):,} | "
+                    f"标签：{v.get('hashtags', '')} | BGM：{v.get('music_name', '')}"
+                )
+                for i, v in enumerate(group_a_videos[:10], 1)
+            ]
+        )
+
+        # 准备B组视频摘要
+        group_b_data = "\n".join(
+            [
+                (
+                    f"{i}. 描述：{v.get('description', v.get('title', ''))[:80]} | "
+                    f"播放：{v.get('play_count', 0):,} | 点赞：{v.get('like_count', 0):,} | "
+                    f"标签：{v.get('hashtags', '')} | BGM：{v.get('music_name', '')}"
+                )
+                for i, v in enumerate(group_b_videos[:10], 1)
+            ]
+        )
+
+        # 构建prompt
+        prompt = AB_COMPARISON_PROMPT.format(
+            group_a_label=group_a_label,
+            group_b_label=group_b_label,
+            group_a_data=group_a_data,
+            group_b_data=group_b_data,
+        )
+
+        messages = [
+            {"role": "system", "content": "你是专业的TikTok内容AB测试分析师，请用中文回答。"},
+            {"role": "user", "content": prompt},
+        ]
+
+        api_timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[AI Analysis] [{api_timestamp}] 发送API请求...")
+        print(f"[AI Analysis] 调用AI API进行AB对比分析...")
+        response = self._call_api_with_retry(
+            messages=messages,
+            max_retries=AI_CONFIG["max_retries"],
+            temperature=0.7,
+            max_tokens=AI_CONFIG["max_tokens_ab_comparison"],
+        )
+
+        if response is None:
+            print("[AI Analysis] ❌ AI API AB对比分析调用失败，使用模拟分析")
+            return self._mock_ab_comparison(group_a_videos, group_b_videos, group_a_label, group_b_label)
+
+        print(f"[AI Analysis] 收到AB对比分析响应，正在解析...")
+        raw_response = self._extract_response_text(response)
+        result = self._parse_json_response(raw_response)
+        if not result:
+            print("[AI Analysis] ⚠️ AB对比分析JSON解析失败，使用模拟分析")
+            return self._mock_ab_comparison(group_a_videos, group_b_videos, group_a_label, group_b_label)
+
+        # 兼容字段映射，确保 UI 能正确读取
+        if "group_a_summary" in result and "group_a_overview" not in result:
+            result["group_a_overview"] = {
+                "avg_plays": result["group_a_summary"].get("avg_play_count", 0),
+                "avg_engagement_rate": result["group_a_summary"].get("avg_engagement_rate", 0),
+                "hook_type": result["group_a_summary"].get("dominant_hook_type", ""),
+                "content_pattern": result["group_a_summary"].get("content_pattern", ""),
+                "strengths": result["group_a_summary"].get("strengths", []),
+            }
+        if "group_b_summary" in result and "group_b_overview" not in result:
+            result["group_b_overview"] = {
+                "avg_plays": result["group_b_summary"].get("avg_play_count", 0),
+                "avg_engagement_rate": result["group_b_summary"].get("avg_engagement_rate", 0),
+                "hook_type": result["group_b_summary"].get("dominant_hook_type", ""),
+                "content_pattern": result["group_b_summary"].get("content_pattern", ""),
+                "strengths": result["group_b_summary"].get("strengths", []),
+            }
+        if "dimension_comparison" in result and "dimension_comparisons" not in result:
+            result["dimension_comparisons"] = result["dimension_comparison"]
+        if "start_framework_comparison" in result and "start_comparison" not in result:
+            result["start_comparison"] = result["start_framework_comparison"]
+        if "actionable_script" in result and "script_template" not in result:
+            result["script_template"] = result["actionable_script"]
+
+        result["raw_response"] = raw_response
+        end_timestamp = datetime.now().strftime("%H:%M:%S")
+        elapsed = time.time() - start_time
+        print(f"[AI Analysis] [{end_timestamp}] AB对比分析完成 | 总耗时: {elapsed:.1f}s")
+        print(f"[AI Analysis] ✅ AB对比分析完成")
+        return result
+
+    def _mock_ab_comparison(self, group_a_videos, group_b_videos, group_a_label, group_b_label):
+        """API不可用时的模拟AB对比分析"""
+        # 计算A组统计数据
+        a_plays = [v.get("play_count", 0) for v in group_a_videos]
+        a_avg_plays = sum(a_plays) / len(a_plays) if a_plays else 0
+        a_engagement_rates = [self.calculate_engagement_metrics(v)["engagement_rate"] for v in group_a_videos]
+        a_avg_engagement = sum(a_engagement_rates) / len(a_engagement_rates) if a_engagement_rates else 0
+
+        # 计算B组统计数据
+        b_plays = [v.get("play_count", 0) for v in group_b_videos]
+        b_avg_plays = sum(b_plays) / len(b_plays) if b_plays else 0
+        b_engagement_rates = [self.calculate_engagement_metrics(v)["engagement_rate"] for v in group_b_videos]
+        b_avg_engagement = sum(b_engagement_rates) / len(b_engagement_rates) if b_engagement_rates else 0
+
+        # 判定胜出方
+        winner = "A" if a_avg_plays >= b_avg_plays else "B"
+        winner_label = group_a_label if winner == "A" else group_b_label
+        winner_reason = f"{winner_label}的平均播放量更高，整体内容策略更有效"
+
+        return {
+            "group_a_summary": {
+                "avg_play_count": f"{int(a_avg_plays):,}",
+                "avg_engagement_rate": f"{a_avg_engagement:.2f}%",
+                "dominant_hook_type": "信息价值型",
+                "content_pattern": "结果前置型内容结构，快速抓住用户注意力",
+                "strengths": [
+                    "开场钩子设计较为直接，能快速吸引目标受众",
+                    "内容节奏紧凑，信息密度适中",
+                    "BGM选择贴合内容主题，增强观看体验"
+                ]
+            },
+            "group_b_summary": {
+                "avg_play_count": f"{int(b_avg_plays):,}",
+                "avg_engagement_rate": f"{b_avg_engagement:.2f}%",
+                "dominant_hook_type": "情感共鸣型",
+                "content_pattern": "故事叙述型内容结构，注重情感连接",
+                "strengths": [
+                    "情感共鸣点把握较好，用户停留时间较长",
+                    "视觉呈现风格统一，品牌识别度高",
+                    "互动引导设计自然，评论转化率较高"
+                ]
+            },
+            "winner": winner,
+            "winner_reason": winner_reason,
+            "dimension_comparison": [
+                {
+                    "dimension": "钩子策略",
+                    "group_a_performance": "采用结果前置型钩子，开场直接展示核心内容",
+                    "group_b_performance": "采用悬念型钩子，通过提问或冲突吸引注意",
+                    "gap_analysis": "A组开场更直接，B组更有悬念感，各有优势",
+                    "verdict": "持平"
+                },
+                {
+                    "dimension": "内容结构",
+                    "group_a_performance": "信息密度高，节奏紧凑，适合快速消费",
+                    "group_b_performance": "叙事节奏舒缓，注重情感铺垫和递进",
+                    "gap_analysis": "A组适合碎片化阅读，B组适合深度观看",
+                    "verdict": "A优" if a_avg_plays >= b_avg_plays else "B优"
+                },
+                {
+                    "dimension": "视觉风格",
+                    "group_a_performance": "画面简洁明了，重点突出，剪辑节奏快",
+                    "group_b_performance": "画面质感较好，色调统一，视觉记忆点强",
+                    "gap_analysis": "A组信息传达效率高，B组品牌调性更突出",
+                    "verdict": "持平"
+                },
+                {
+                    "dimension": "文案策略",
+                    "group_a_performance": "标题直接明了，使用数字和结果导向词汇",
+                    "group_b_performance": "标题富有情感，善于使用疑问句和共鸣词",
+                    "gap_analysis": "A组点击转化率高，B组用户情感连接更深",
+                    "verdict": "持平"
+                },
+                {
+                    "dimension": "BGM策略",
+                    "group_a_performance": "选择节奏明快的流行音乐，与内容节奏匹配",
+                    "group_b_performance": "选择情感氛围音乐，强化内容情绪表达",
+                    "gap_analysis": "两组BGM策略差异明显，适应不同内容风格",
+                    "verdict": "持平"
+                },
+                {
+                    "dimension": "互动引导",
+                    "group_a_performance": "CTA设计直接，明确引导点赞和关注",
+                    "group_b_performance": "通过情感共鸣自然引导用户评论互动",
+                    "gap_analysis": "A组转化路径清晰，B组用户参与感更强",
+                    "verdict": "B优"
+                }
+            ],
+            "root_causes": [
+                "内容定位差异导致受众群体不同，影响整体播放量表现",
+                "开场策略的差异直接影响3秒完播率和推荐算法分发",
+                "互动引导方式不同导致用户参与深度和转化效果存在差异"
+            ],
+            "optimization_suggestions": [
+                {
+                    "priority": "高",
+                    "suggestion": "融合A组的结果前置开场和B组的情感共鸣设计，打造既有冲击力又有温度的开场",
+                    "expected_impact": "提升3秒完播率和用户情感连接，预计播放量提升20-30%"
+                },
+                {
+                    "priority": "高",
+                    "suggestion": "优化内容节奏，在信息密度和情感铺垫之间找到平衡点",
+                    "expected_impact": "提升完播率和用户满意度，增强内容传播力"
+                },
+                {
+                    "priority": "中",
+                    "suggestion": "统一视觉风格的同时保留内容多样性，建立品牌识别度",
+                    "expected_impact": "增强用户记忆点，提高粉丝粘性和复访率"
+                },
+                {
+                    "priority": "中",
+                    "suggestion": "文案采用A/B测试策略，针对不同内容类型使用不同的标题风格",
+                    "expected_impact": "提升整体点击率，找到最优文案策略"
+                },
+                {
+                    "priority": "低",
+                    "suggestion": "建立BGM素材库，根据内容情绪标签匹配合适的背景音乐",
+                    "expected_impact": "提升内容制作效率，保证BGM与内容的契合度"
+                }
+            ],
+            "start_framework_comparison": {
+                "stop": {
+                    "group_a": "直接抛出结果或核心观点，快速截停用户滑动",
+                    "group_b": "通过情感共鸣点或悬念问题吸引用户停留",
+                    "verdict": "持平"
+                },
+                "tension": {
+                    "group_a": "用信息密度和节奏感维持用户注意力",
+                    "group_b": "通过情感递进和故事发展制造期待感",
+                    "verdict": "B优"
+                },
+                "authority": {
+                    "group_a": "通过专业知识和数据展示建立信任",
+                    "group_b": "通过真实经历和情感真诚获得认同",
+                    "verdict": "持平"
+                },
+                "reveal": {
+                    "group_a": "分步骤清晰交付核心价值，逻辑性强",
+                    "group_b": "通过故事高潮自然呈现价值，感染力强",
+                    "verdict": "持平"
+                },
+                "transfer": {
+                    "group_a": "明确给出行动指令，转化路径清晰",
+                    "group_b": "情感高点自然引导互动，用户参与感强",
+                    "verdict": "B优"
+                }
+            },
+            "actionable_script": "S (钩子): [结合A组的结果前置优势，直接展示核心利益点或反常识观点，同时融入B组的情感共鸣元素，让用户感到'这与我有关']\\nT (悬念): [采用B组的悬念制造技巧，暗示即将揭晓的答案或解决方案，但先铺垫情感背景或痛点场景]\\nA (信任): [融合A组的专业背书和B组的真实经历，一句话交代你的专业资质和亲身实践]\\nR (交付): [按照A组的清晰逻辑分3步交付价值，同时借鉴B组的情感表达方式，让信息传递更有温度]\\nT (引导): [结合A组的明确CTA和B组的情感引导，在情绪高点给出行动号召，如'如果你也有这样的困扰，双击屏幕让我知道'或'评论区分享你的经历']",
+            "raw_response": "[mock ab comparison analysis]",
+            # UI 期望的字段映射
+            "group_a_overview": {
+                "avg_plays": f"{int(a_avg_plays):,}",
+                "avg_engagement_rate": f"{a_avg_engagement:.2f}%",
+                "hook_type": "信息价值型",
+                "content_pattern": "结果前置型内容结构，快速抓住用户注意力",
+                "strengths": [
+                    "开场钩子设计较为直接，能快速吸引目标受众",
+                    "内容节奏紧凑，信息密度适中",
+                    "BGM选择贴合内容主题，增强观看体验"
+                ]
+            },
+            "group_b_overview": {
+                "avg_plays": f"{int(b_avg_plays):,}",
+                "avg_engagement_rate": f"{b_avg_engagement:.2f}%",
+                "hook_type": "情感共鸣型",
+                "content_pattern": "故事叙述型内容结构，注重情感连接",
+                "strengths": [
+                    "情感共鸣点把握较好，用户停留时间较长",
+                    "视觉呈现风格统一，品牌识别度高",
+                    "互动引导设计自然，评论转化率较高"
+                ]
+            },
+            "dimension_comparisons": [
+                {
+                    "dimension": "钩子策略",
+                    "group_a_performance": "采用结果前置型钩子，开场直接展示核心内容",
+                    "group_b_performance": "采用悬念型钩子，通过提问或冲突吸引注意",
+                    "gap_analysis": "A组开场更直接，B组更有悬念感，各有优势",
+                    "verdict": "持平"
+                },
+                {
+                    "dimension": "内容结构",
+                    "group_a_performance": "信息密度高，节奏紧凑，适合快速消费",
+                    "group_b_performance": "叙事节奏舒缓，注重情感铺垫和递进",
+                    "gap_analysis": "A组适合碎片化阅读，B组适合深度观看",
+                    "verdict": "A优" if a_avg_plays >= b_avg_plays else "B优"
+                },
+                {
+                    "dimension": "视觉风格",
+                    "group_a_performance": "画面简洁明了，重点突出，剪辑节奏快",
+                    "group_b_performance": "画面质感较好，色调统一，视觉记忆点强",
+                    "gap_analysis": "A组信息传达效率高，B组品牌调性更突出",
+                    "verdict": "持平"
+                },
+                {
+                    "dimension": "文案策略",
+                    "group_a_performance": "标题直接明了，使用数字和结果导向词汇",
+                    "group_b_performance": "标题富有情感，善于使用疑问句和共鸣词",
+                    "gap_analysis": "A组点击转化率高，B组用户情感连接更深",
+                    "verdict": "持平"
+                },
+                {
+                    "dimension": "BGM策略",
+                    "group_a_performance": "选择节奏明快的流行音乐，与内容节奏匹配",
+                    "group_b_performance": "选择情感氛围音乐，强化内容情绪表达",
+                    "gap_analysis": "两组BGM策略差异明显，适应不同内容风格",
+                    "verdict": "持平"
+                },
+                {
+                    "dimension": "互动引导",
+                    "group_a_performance": "CTA设计直接，明确引导点赞和关注",
+                    "group_b_performance": "通过情感共鸣自然引导用户评论互动",
+                    "gap_analysis": "A组转化路径清晰，B组用户参与感更强",
+                    "verdict": "B优"
+                }
+            ],
+            "start_comparison": {
+                "stop": {
+                    "group_a": "直接抛出结果或核心观点，快速截停用户滑动",
+                    "group_b": "通过情感共鸣点或悬念问题吸引用户停留",
+                    "verdict": "持平"
+                },
+                "tension": {
+                    "group_a": "用信息密度和节奏感维持用户注意力",
+                    "group_b": "通过情感递进和故事发展制造期待感",
+                    "verdict": "B优"
+                },
+                "authority": {
+                    "group_a": "通过专业知识和数据展示建立信任",
+                    "group_b": "通过真实经历和情感真诚获得认同",
+                    "verdict": "持平"
+                },
+                "reveal": {
+                    "group_a": "分步骤清晰交付核心价值，逻辑性强",
+                    "group_b": "通过故事高潮自然呈现价值，感染力强",
+                    "verdict": "持平"
+                },
+                "transfer": {
+                    "group_a": "明确给出行动指令，转化路径清晰",
+                    "group_b": "情感高点自然引导互动，用户参与感强",
+                    "verdict": "B优"
+                }
+            },
+            "script_template": "S (钩子): [结合A组的结果前置优势，直接展示核心利益点或反常识观点，同时融入B组的情感共鸣元素，让用户感到'这与我有关']\\nT (悬念): [采用B组的悬念制造技巧，暗示即将揭晓的答案或解决方案，但先铺垫情感背景或痛点场景]\\nA (信任): [融合A组的专业背书和B组的真实经历，一句话交代你的专业资质和亲身实践]\\nR (交付): [按照A组的清晰逻辑分3步交付价值，同时借鉴B组的情感表达方式，让信息传递更有温度]\\nT (引导): [结合A组的明确CTA和B组的情感引导，在情绪高点给出行动号召，如'如果你也有这样的困扰，双击屏幕让我知道'或'评论区分享你的经历']",
         }
