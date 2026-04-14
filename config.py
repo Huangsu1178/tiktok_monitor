@@ -76,7 +76,7 @@ def _sync_env_file(key: str, value: str):
             lines = f.readlines()
     
     # 查找并更新或添加配置项
-    key_found = False
+    key_found = False 
     new_lines = []
     for line in lines:
         stripped = line.strip()
