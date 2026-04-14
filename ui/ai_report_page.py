@@ -704,6 +704,18 @@ class AIReportPage(QWidget):
         hook_desc.setStyleSheet("color: #d4e0f3; font-size: 14px; line-height: 1.7;")
         hook_layout.addWidget(hook_desc)
 
+        # S.T.A.R.T 框架拆解区域
+        start_framework = analysis.get("start_framework", {})
+        start_widget = None
+        if start_framework:
+            start_widget = self._build_start_framework_widget(start_framework)
+
+        # 爆款达标线对比区域
+        benchmark = analysis.get("performance_benchmark", {})
+        benchmark_widget = None
+        if benchmark:
+            benchmark_widget = self._build_benchmark_widget(benchmark)
+
         grid_frame = QWidget()
         grid = QGridLayout(grid_frame)
         grid.setContentsMargins(0, 0, 0, 0)
@@ -721,7 +733,23 @@ class AIReportPage(QWidget):
         for idx, (title, content, accent) in enumerate(cards):
             grid.addWidget(AnalysisCard(title, content, accent), idx // 2, idx % 2)
 
-        self._set_scroll_content(self.single_scroll, [hero, metrics_frame, hook_banner, grid_frame])
+        # 仿写脚本模板区域
+        script_template = analysis.get("script_template", "")
+        script_widget = None
+        if script_template:
+            script_widget = self._build_script_template_widget(script_template)
+
+        # 组装所有组件
+        widgets = [hero, metrics_frame, hook_banner]
+        if start_widget:
+            widgets.append(start_widget)
+        if benchmark_widget:
+            widgets.append(benchmark_widget)
+        widgets.append(grid_frame)
+        if script_widget:
+            widgets.append(script_widget)
+
+        self._set_scroll_content(self.single_scroll, widgets)
         self._switch_report("single")
 
     def show_batch_analysis(self, analysis: dict, username: str = ""):
@@ -759,6 +787,12 @@ class AIReportPage(QWidget):
         formula_content.setStyleSheet("color: #f2f5ff; font-size: 20px; font-weight: 700; line-height: 1.7;")
         formula_layout.addWidget(formula_content)
 
+        # S.T.A.R.T 共同模式区域
+        start_patterns = analysis.get("common_start_patterns", {})
+        start_section = None
+        if start_patterns and isinstance(start_patterns, dict):
+            start_section = self._build_start_patterns_section(start_patterns)
+
         grid_frame = QWidget()
         grid = QGridLayout(grid_frame)
         grid.setContentsMargins(0, 0, 0, 0)
@@ -775,8 +809,148 @@ class AIReportPage(QWidget):
         for idx, (title, content, accent) in enumerate(cards):
             grid.addWidget(AnalysisCard(title, content, accent), idx // 2, idx % 2)
 
-        self._set_scroll_content(self.batch_scroll, [hero, formula, grid_frame])
+        # 通用仿写模板区域
+        script_template = analysis.get("script_template", "")
+        template_section = None
+        if script_template and isinstance(script_template, str):
+            template_section = self._build_script_template_section(script_template)
+
+        # 组装所有组件
+        widgets = [hero, formula]
+        if start_section:
+            widgets.append(start_section)
+        widgets.append(grid_frame)
+        if template_section:
+            widgets.append(template_section)
+
+        self._set_scroll_content(self.batch_scroll, widgets)
         self._switch_report("batch")
+
+    def _build_start_patterns_section(self, patterns: dict) -> QWidget:
+        """构建 S.T.A.R.T 共同模式展示区域"""
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        # 区域标题
+        title_label = QLabel("S.T.A.R.T 共同策略模式")
+        title_label.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
+        layout.addWidget(title_label)
+
+        # S.T.A.R.T 阶段定义
+        start_stages = [
+            ("S", "Stop · 钩子", "stop", "#ff6b6b"),
+            ("T", "Tension · 悬念", "tension", "#ffa94d"),
+            ("A", "Authority · 信任", "authority", "#51cf66"),
+            ("R", "Reveal · 交付", "reveal", "#339af0"),
+            ("T", "Transfer · 引导", "transfer", "#cc5de8"),
+        ]
+
+        for letter, stage_name, key, color in start_stages:
+            card = QFrame()
+            card.setStyleSheet(
+                f"""
+                QFrame {{
+                    background-color: #1a1e24;
+                    border: 1px solid #2a3441;
+                    border-left: 4px solid {color};
+                    border-radius: 12px;
+                }}
+                """
+            )
+            card_layout = QHBoxLayout(card)
+            card_layout.setContentsMargins(16, 14, 16, 14)
+            card_layout.setSpacing(12)
+
+            # 左侧字母标记
+            letter_label = QLabel(letter)
+            letter_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            letter_label.setStyleSheet(
+                f"""
+                QLabel {{
+                    background-color: {color};
+                    color: #ffffff;
+                    border-radius: 8px;
+                    padding: 4px 10px;
+                    font-size: 16px;
+                    font-weight: 800;
+                }}
+                """
+            )
+            letter_label.setFixedSize(36, 36)
+            card_layout.addWidget(letter_label)
+
+            # 右侧内容区域
+            content_widget = QWidget()
+            content_layout = QVBoxLayout(content_widget)
+            content_layout.setContentsMargins(0, 0, 0, 0)
+            content_layout.setSpacing(4)
+
+            stage_label = QLabel(stage_name)
+            stage_label.setStyleSheet(f"color: {color}; font-size: 13px; font-weight: 700;")
+            content_layout.addWidget(stage_label)
+
+            pattern_text = patterns.get(key, "暂无数据")
+            desc_label = QLabel(pattern_text)
+            desc_label.setWordWrap(True)
+            desc_label.setStyleSheet("color: #c6d5ea; font-size: 14px; line-height: 1.6;")
+            content_layout.addWidget(desc_label)
+
+            card_layout.addWidget(content_widget, 1)
+            layout.addWidget(card)
+
+        return container
+
+    def _build_script_template_section(self, template: str) -> QWidget:
+        """构建通用仿写模板展示区域"""
+        container = QFrame()
+        container.setStyleSheet(
+            """
+            QFrame {
+                background-color: #1a1e24;
+                border: 1px solid #2a3441;
+                border-left: 4px solid #ffd700;
+                border-radius: 12px;
+            }
+            """
+        )
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setSpacing(12)
+
+        # 标题
+        title_label = QLabel("通用 S.T.A.R.T 创作模板")
+        title_label.setStyleSheet("color: #ffd700; font-size: 15px; font-weight: 700;")
+        layout.addWidget(title_label)
+
+        # 内容区域
+        content_frame = QFrame()
+        content_frame.setStyleSheet(
+            """
+            QFrame {
+                background-color: #141820;
+                border-radius: 8px;
+            }
+            """
+        )
+        content_layout = QVBoxLayout(content_frame)
+        content_layout.setContentsMargins(16, 14, 16, 14)
+        content_layout.setSpacing(8)
+
+        # 按行显示模板内容
+        lines = template.split("\n")
+        for line in lines:
+            if line.strip():
+                line_label = QLabel(line.strip())
+                line_label.setWordWrap(True)
+                line_label.setStyleSheet(
+                    "color: #e6eefb; font-size: 14px; line-height: 1.7; font-family: Consolas, Monaco, monospace;"
+                )
+                content_layout.addWidget(line_label)
+
+        layout.addWidget(content_frame)
+        return container
 
     def _build_report_hero(self, title: str, desc: str, badge: str, accent: str, extra_text: str = ""):
         frame = QFrame()
@@ -835,3 +1009,237 @@ class AIReportPage(QWidget):
         if value >= 1_000:
             return f"{value / 1_000:.1f}K"
         return str(value)
+
+    def _build_start_framework_widget(self, start_framework: dict) -> QFrame:
+        """构建 S.T.A.R.T 框架拆解区域"""
+        container = QFrame()
+        container.setStyleSheet(
+            f"""
+            QFrame {{
+                background-color: {BG_PANEL};
+                border: 1px solid {BORDER};
+                border-radius: 16px;
+            }}
+            """
+        )
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setSpacing(14)
+
+        # 区域标题
+        title_label = QLabel("S.T.A.R.T 框架拆解")
+        title_label.setStyleSheet("color: #f4f8ff; font-size: 16px; font-weight: 700;")
+        layout.addWidget(title_label)
+
+        # S.T.A.R.T 阶段定义
+        start_stages = [
+            ("S", "Stop · 钩子", "stop", "#ff6b6b"),
+            ("T", "Tension · 悬念", "tension", "#ffa94d"),
+            ("A", "Authority · 信任", "authority", "#51cf66"),
+            ("R", "Reveal · 交付", "reveal", "#339af0"),
+            ("T", "Transfer · 引导", "transfer", "#cc5de8"),
+        ]
+
+        for letter, stage_name, key, color in start_stages:
+            stage_card = QFrame()
+            stage_card.setStyleSheet(
+                f"""
+                QFrame {{
+                    background-color: #1a1e24;
+                    border-left: 4px solid {color};
+                    border-radius: 10px;
+                }}
+                """
+            )
+            card_layout = QHBoxLayout(stage_card)
+            card_layout.setContentsMargins(14, 12, 14, 12)
+            card_layout.setSpacing(12)
+
+            # 左侧字母标记（圆形）
+            letter_label = QLabel(letter)
+            letter_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            letter_label.setStyleSheet(
+                f"""
+                QLabel {{
+                    background-color: {color};
+                    color: #ffffff;
+                    border-radius: 14px;
+                    font-size: 14px;
+                    font-weight: 800;
+                    min-width: 28px;
+                    max-width: 28px;
+                    min-height: 28px;
+                    max-height: 28px;
+                }}
+                """
+            )
+            card_layout.addWidget(letter_label)
+
+            # 右侧内容区域
+            content_layout = QVBoxLayout()
+            content_layout.setSpacing(4)
+
+            stage_title = QLabel(stage_name)
+            stage_title.setStyleSheet(f"color: {color}; font-size: 13px; font-weight: 700;")
+            content_layout.addWidget(stage_title)
+
+            stage_content = QLabel(start_framework.get(key, "暂无内容"))
+            stage_content.setWordWrap(True)
+            stage_content.setStyleSheet("color: #c6d5ea; font-size: 13px; line-height: 1.6;")
+            content_layout.addWidget(stage_content)
+
+            card_layout.addLayout(content_layout, 1)
+            layout.addWidget(stage_card)
+
+        return container
+
+    def _build_benchmark_widget(self, benchmark: dict) -> QFrame:
+        """构建爆款达标线对比区域"""
+        container = QFrame()
+        container.setStyleSheet(
+            """
+            QFrame {
+                background-color: #1e2227;
+                border: 1px solid #2f3a4a;
+                border-radius: 16px;
+            }
+            """
+        )
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setSpacing(12)
+
+        # 标题
+        title_label = QLabel("爆款达标线对比")
+        title_label.setStyleSheet("color: #f4f8ff; font-size: 16px; font-weight: 700;")
+        layout.addWidget(title_label)
+
+        # 互动率与达标状态行
+        top_row = QHBoxLayout()
+        top_row.setSpacing(16)
+
+        # 互动率数值
+        engagement_rate = benchmark.get("engagement_rate", 0)
+        rate_value = QLabel(f"{engagement_rate}%")
+        rate_value.setStyleSheet("color: #f4f8ff; font-size: 32px; font-weight: 800;")
+        top_row.addWidget(rate_value)
+
+        # 达标状态标签
+        is_passed = benchmark.get("verdict", "").startswith("✓") or benchmark.get("verdict", "").startswith("✔")
+        if not is_passed:
+            verdict = benchmark.get("verdict", "")
+            is_passed = "达标" in verdict or "通过" in verdict or "成功" in verdict
+
+        status_color = "#51cf66" if is_passed else "#ffa94d"
+        status_icon = "✓" if is_passed else "✗"
+        status_text = "已达标" if is_passed else "未达标"
+
+        status_label = QLabel(f"{status_icon} {status_text}")
+        status_label.setStyleSheet(
+            f"""
+            QLabel {{
+                background-color: {status_color}22;
+                color: {status_color};
+                border: 1px solid {status_color}44;
+                border-radius: 8px;
+                padding: 6px 12px;
+                font-size: 13px;
+                font-weight: 700;
+            }}
+            """
+        )
+        top_row.addWidget(status_label)
+        top_row.addStretch()
+        layout.addLayout(top_row)
+
+        # 基准线说明
+        benchmark_8pct = benchmark.get("benchmark_8pct", "8%")
+        benchmark_label = QLabel(f"爆款达标线：{benchmark_8pct}")
+        benchmark_label.setStyleSheet("color: #8fa6c9; font-size: 12px;")
+        layout.addWidget(benchmark_label)
+
+        # 综合评价
+        verdict_text = benchmark.get("verdict", "")
+        if verdict_text:
+            verdict_label = QLabel(verdict_text)
+            verdict_label.setWordWrap(True)
+            verdict_label.setStyleSheet("color: #d4e0f3; font-size: 14px; line-height: 1.6;")
+            layout.addWidget(verdict_label)
+
+        # 改进建议
+        improvement_tips = benchmark.get("improvement_tips", "")
+        if improvement_tips:
+            tips_frame = QFrame()
+            tips_frame.setStyleSheet(
+                """
+                QFrame {
+                    background-color: #141820;
+                    border-radius: 10px;
+                }
+                """
+            )
+            tips_layout = QVBoxLayout(tips_frame)
+            tips_layout.setContentsMargins(14, 12, 14, 12)
+
+            tips_title = QLabel("改进建议")
+            tips_title.setStyleSheet("color: #ffa94d; font-size: 12px; font-weight: 700;")
+            tips_layout.addWidget(tips_title)
+
+            tips_content = QLabel(improvement_tips)
+            tips_content.setWordWrap(True)
+            tips_content.setStyleSheet("color: #c6d5ea; font-size: 13px; line-height: 1.6;")
+            tips_layout.addWidget(tips_content)
+
+            layout.addWidget(tips_frame)
+
+        return container
+
+    def _build_script_template_widget(self, script_template: str) -> QFrame:
+        """构建仿写脚本模板区域"""
+        container = QFrame()
+        container.setStyleSheet(
+            f"""
+            QFrame {{
+                background-color: #1a1e24;
+                border: 1px solid {BORDER};
+                border-left: 4px solid #ffd700;
+                border-radius: 16px;
+            }}
+            """
+        )
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setSpacing(12)
+
+        # 标题
+        title_label = QLabel("S.T.A.R.T 仿写脚本模板")
+        title_label.setStyleSheet("color: #ffd700; font-size: 16px; font-weight: 700;")
+        layout.addWidget(title_label)
+
+        # 脚本内容区域（引用块风格）
+        content_frame = QFrame()
+        content_frame.setStyleSheet(
+            """
+            QFrame {
+                background-color: #141820;
+                border-left: 3px solid #ffd700;
+                border-radius: 8px;
+            }
+            """
+        )
+        content_layout = QVBoxLayout(content_frame)
+        content_layout.setContentsMargins(16, 14, 16, 14)
+        content_layout.setSpacing(8)
+
+        # 按行分割脚本模板
+        lines = script_template.split("\n")
+        for line in lines:
+            line = line.strip()
+            if line:
+                line_label = QLabel(line)
+                line_label.setWordWrap(True)
+                line_label.setStyleSheet("color: #e6eefb; font-size: 14px; line-height: 1.8; font-family: 'Consolas', 'Monaco', monospace;")
+                content_layout.addWidget(line_label)
+
+        layout.addWidget(content_frame)
+        return container

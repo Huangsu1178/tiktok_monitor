@@ -383,6 +383,20 @@ class TikTokAIAnalysisSkill(AIClientMixin):
                 "2. 保留 1 个核心卖点，不要信息过载。\n"
                 "3. 用 3-5 个垂类标签配合热点音乐。"
             ),
+            "start_framework": {
+                "stop": "视频开头通过直接抛出痛点或反常识观点，在第一秒截停用户滑动",
+                "tension": "暗示有解决方案但不立即揭晓，用疑问句或悬念画面制造期待感",
+                "authority": "通过专业身份背书或展示实际成果，快速建立信任",
+                "reveal": "分步骤交付核心价值，配合紧凑的视觉切换保持注意力",
+                "transfer": "在情绪高点给出明确的行动号召，引导点赞、评论或关注"
+            },
+            "performance_benchmark": {
+                "engagement_rate": "计算中...",
+                "benchmark_8pct": "待评估",
+                "verdict": "需要实际互动数据进行评估",
+                "improvement_tips": "建议优化开场钩子以提升3秒完播率，增加互动引导以提升评论和分享率"
+            },
+            "script_template": "S (钩子): [抛出一个关于该领域的反常识观点或强烈痛点]\nT (悬念): [暗示你掌握了解决方法，但先卖个关子制造期待]\nA (信任): [一句话交代你的专业背景或亲身经历]\nR (交付): [分3步给出具体的解决方案，配合清晰的视觉展示]\nT (引导): [给出明确的下一步行动指令，如点赞、收藏或在评论区留言]",
             "raw_response": "[mock analysis]",
         }
 
@@ -399,6 +413,14 @@ class TikTokAIAnalysisSkill(AIClientMixin):
                 "4. 结尾引导评论或收藏。"
             ),
             "hook_formula": "痛点/结果前置 -> 过程拆解 -> 情绪强化 -> 行动召唤",
+            "common_start_patterns": {
+                "stop": "多数视频采用痛点前置或数字冲击型钩子截停用户",
+                "tension": "常用疑问句或'你一定不知道'句式制造悬念",
+                "authority": "通过展示成果数据或专业身份快速建立信任",
+                "reveal": "倾向于使用3步法或清单式交付核心价值",
+                "transfer": "结尾常用'点赞收藏'或'评论区告诉我'引导互动"
+            },
+            "script_template": "S (钩子): [结合该博主最常用的钩子类型，抛出目标受众的核心痛点]\nT (悬念): [用该博主惯用的悬念手法，暗示即将揭晓答案]\nA (信任): [模仿该博主的信任建立方式]\nR (交付): [按照该博主的内容节奏，分步交付价值]\nT (引导): [使用该博主最有效的CTA话术引导互动]",
             "raw_response": "[mock batch analysis]",
             "analyzed_videos_count": len(videos[:10]),
         }

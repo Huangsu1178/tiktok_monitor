@@ -34,6 +34,17 @@ HOOK_ANALYSIS_PROMPT = """你是一位专业的TikTok内容策略分析师，擅
 6. **visual_style**（视觉风格）：根据标签和描述推断视频的视觉呈现风格
 7. **copywriting_style**（文案风格）：分析标题/描述的文案策略（如疑问句、数字、对比等）
 8. **replication_suggestions**（可复用建议）：提供3条具体的内容创作建议，帮助复制该视频的成功要素
+9. **start_framework**（S.T.A.R.T框架拆解）：按S.T.A.R.T五阶段分析该视频的内容策略
+   - S (Stop)：该视频如何在第一秒截停用户滑动（钩子策略描述）
+   - T (Tension)：如何制造悬念和期待感
+   - A (Authority)：如何建立信任和专业度
+   - R (Reveal)：如何交付核心价值（分步骤描述）
+   - T (Transfer)：如何引导用户行动（CTA策略）
+10. **performance_benchmark**（爆款达标线对比）：基于视频的互动数据，与行业爆款达标线进行对比评估
+    - 计算互动率 = (点赞数+评论数+分享数) / 播放量 × 100%
+    - 对比8%爆款达标线
+    - 给出综合评价和优化建议
+11. **script_template**（仿写脚本模板）：基于该视频的钩子类型和成功策略，输出一份可填空的S.T.A.R.T仿写脚本模板
 
 请严格按照以下JSON格式返回，不要包含任何额外文字：
 ```json
@@ -45,7 +56,21 @@ HOOK_ANALYSIS_PROMPT = """你是一位专业的TikTok内容策略分析师，擅
   "bgm_strategy": "...",
   "visual_style": "...",
   "copywriting_style": "...",
-  "replication_suggestions": "1. ...\\n2. ...\\n3. ..."
+  "replication_suggestions": "1. ...\\n2. ...\\n3. ...",
+  "start_framework": {{
+    "stop": "...",
+    "tension": "...",
+    "authority": "...",
+    "reveal": "...",
+    "transfer": "..."
+  }},
+  "performance_benchmark": {{
+    "engagement_rate": "...",
+    "benchmark_8pct": true/false,
+    "verdict": "...",
+    "improvement_tips": "..."
+  }},
+  "script_template": "S (钩子): [...]\\nT (悬念): [...]\\nA (信任): [...]\\nR (交付): [...]\\nT (引导): [...]"
 }}
 ```
 """
@@ -68,6 +93,13 @@ BATCH_ANALYSIS_PROMPT = """你是一位专业的TikTok内容策略分析师。
 4. **hashtag_strategy**（标签策略）：标签使用的规律和建议
 5. **content_recommendations**（内容建议）：基于以上分析，给出5条具体的内容创作优化建议
 6. **hook_formula**（钩子公式）：总结出一个可复用的"爆款公式"
+7. **common_start_patterns**（S.T.A.R.T共同模式）：总结该博主视频在S.T.A.R.T各阶段的共同策略模式
+   - S (Stop)：共同的钩子截停策略
+   - T (Tension)：共同的悬念制造方式
+   - A (Authority)：共同的信任建立手法
+   - R (Reveal)：共同的价值交付模式
+   - T (Transfer)：共同的行动引导策略
+8. **script_template**（通用仿写模板）：基于爆款公式生成一份通用的S.T.A.R.T创作模板
 
 请严格按照以下JSON格式返回：
 ```json
@@ -77,7 +109,15 @@ BATCH_ANALYSIS_PROMPT = """你是一位专业的TikTok内容策略分析师。
   "bgm_insights": "...",
   "hashtag_strategy": "...",
   "content_recommendations": "1. ...\\n2. ...\\n3. ...\\n4. ...\\n5. ...",
-  "hook_formula": "..."
+  "hook_formula": "...",
+  "common_start_patterns": {{
+    "stop": "...",
+    "tension": "...",
+    "authority": "...",
+    "reveal": "...",
+    "transfer": "..."
+  }},
+  "script_template": "S (钩子): [...]\\nT (悬念): [...]\\nA (信任): [...]\\nR (交付): [...]\\nT (引导): [...]"
 }}
 ```
 """
