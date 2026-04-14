@@ -130,9 +130,12 @@ HTTPS_PROXY=http://127.0.0.1:7890
 
 ### 其他配置
 
-项目中还有其他可配置项，都在 [config.py](config.py) 中：
+项目中还有其他可配置项，都在 [config.py](../config.py) 中：
 
 - **数据库配置**：`DB_CONFIG`
+  - 数据库文件默认存放在 `db/tiktok_monitor.db`
+  - `db/` 目录会在首次运行时自动创建
+  - 数据库文件已被 `.gitignore` 排除，不会被提交到 Git
 - **抓取配置**：`SCRAPER_CONFIG`
 - **调度器配置**：`SCHEDULER_CONFIG`
 - **UI 配置**：`UI_CONFIG`

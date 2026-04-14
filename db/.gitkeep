@@ -1,0 +1,2 @@
+# This file ensures the db/ directory is tracked by Git
+# The actual database file (tiktok_monitor.db) is ignored via .gitignore

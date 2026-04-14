@@ -4,9 +4,13 @@ SQLite 数据库管理，支持 TikTok / 抖音双平台账号、视频与分析
 """
 import os
 import sqlite3
+import sys
 
+# 使用 config.py 中的数据库配置
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config import get_db_path
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tiktok_monitor.db")
+DB_PATH = get_db_path()
 
 
 def get_connection():

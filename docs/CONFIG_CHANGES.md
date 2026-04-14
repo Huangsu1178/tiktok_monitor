@@ -8,6 +8,11 @@
 
 ### 1. 新增文件
 
+#### `db/.gitkeep`
+- 确保 `db/` 目录在版本控制中被保留
+- 数据库文件 `tiktok_monitor.db` 会被 `.gitignore` 排除
+- 首次运行时会自动创建数据库文件
+
 #### `.env.example`
 - OpenAI API 配置模板
 - 代理配置模板
@@ -21,6 +26,15 @@
 - 安全提示
 
 ### 2. 修改文件
+
+#### `config.py`
+- 更新 `DB_CONFIG` 配置注释，说明默认使用 `db/` 子目录
+- 修改 `get_db_path()` 函数，默认将数据库文件存放在 `db/` 目录
+- 自动创建 `db/` 目录（如果不存在）
+
+#### `data/database.py`
+- 修改数据库路径获取方式，使用 `config.py` 中的 `get_db_path()` 函数
+- 统一数据库路径管理，避免硬编码
 
 #### `.gitignore`
 - 修改 `*.env` 为 `!.env.example`

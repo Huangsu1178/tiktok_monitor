@@ -38,7 +38,7 @@ AI_CONFIG = {
 # ==================== 数据库配置 ====================
 DB_CONFIG = {
     "db_filename": "tiktok_monitor.db",
-    "db_path": "",  # 留空则使用程序同目录
+    "db_path": "",  # 留空则使用 db/ 子目录
 }
 
 
@@ -196,10 +196,14 @@ def get_db_path() -> str:
     if DB_CONFIG["db_path"]:
         return DB_CONFIG["db_path"]
     
-    # 使用程序同目录
-    import sys
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(base_dir, DB_CONFIG["db_filename"])
+    # 使用 db/ 子目录
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    db_dir = os.path.join(base_dir, "db")
+    
+    # 确保 db 目录存在
+    os.makedirs(db_dir, exist_ok=True)
+    
+    return os.path.join(db_dir, DB_CONFIG["db_filename"])
 
 
 def update_config(section: str, key: str, value: Any) -> bool:

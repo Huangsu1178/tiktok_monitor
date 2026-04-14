@@ -93,6 +93,9 @@ tiktok_monitor/
 ├── requirements.txt        # Python依赖清单
 ├── .env.example            # 环境变量配置模板
 │
+├── db/                     # 数据库目录
+│   └── tiktok_monitor.db   # SQLite数据库文件（自动生成）
+│
 ├── core/                   # 核心功能模块
 │   ├── scraper.py          # 数据抓取（yt-dlp + Playwright）
 │   ├── ai_analyzer.py      # AI流量钩子分析
