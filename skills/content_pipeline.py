@@ -315,6 +315,12 @@ class TikTokContentPipeline:
                 "source": "batch_analysis",
                 "recommendations": batch_analysis["content_recommendations"],
             })
+        if batch_analysis and batch_analysis.get("priority_actions"):
+            suggestions.append({
+                "type": "priority_actions",
+                "source": "batch_analysis",
+                "recommendations": batch_analysis["priority_actions"],
+            })
         
         # 基于趋势的建议
         if trends:

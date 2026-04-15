@@ -78,36 +78,112 @@ HOOK_ANALYSIS_PROMPT = """你是一位专业的TikTok内容策略分析师，擅
 # 批量视频规律总结与爆款公式提炼Prompt
 BATCH_ANALYSIS_PROMPT = """你是一位专业的TikTok内容策略分析师。
 
-请对以下{count}个高播放量TikTok视频进行批量分析，总结其共同的流量钩子规律和内容策略。
+请对以下{count}个高播放量TikTok视频进行批量分析，总结它们“共同有效的优秀点”以及“各个视频独有但值得学的特色点”。
 
 ## 视频数据列表
 {videos_data}
 
 ## 分析要求
 
+这不是泛泛而谈的平台常识总结，而是一次“批量研究”。请严格遵守以下原则：
+
+1. 先判断哪些结论最关键，再输出，不要为了凑完整而写很多空泛套话。
+2. 明确区分：
+   - **共性规律**：多个视频反复出现、可以作为稳定方法论复用的优秀点
+   - **单条特色**：只出现在个别视频里，但非常有辨识度、很值得借鉴的独特点
+3. 每一条重要结论都要说明：
+   - 它到底是什么
+   - 为什么它有效
+   - 用户下一步应该怎么学、怎么用
+4. 任何结论都尽量引用视频序号作为证据，例如“视频1/3/4都出现了……”
+5. 不要把“BGM、标签、模板化建议”写成报告重点，除非它们真的是影响结果的关键因素。
+6. 如果样本里不存在稳定共性，就要明确写“更像是由几个不同的成功路径组成”，不要强行总结成一个公式。
+
 请以JSON格式返回以下分析结果：
 
-1. **common_hooks**（共同钩子）：这些视频共同使用的流量钩子类型和策略
-2. **top_patterns**（高频模式）：出现频率最高的内容模式（如开场方式、文案结构等）
-3. **bgm_insights**（BGM洞察）：背景音乐选择的规律和趋势
-4. **hashtag_strategy**（标签策略）：标签使用的规律和建议
-5. **content_recommendations**（内容建议）：基于以上分析，给出5条具体的内容创作优化建议
-6. **hook_formula**（钩子公式）：总结出一个可复用的"爆款公式"
-7. **common_start_patterns**（S.T.A.R.T共同模式）：总结该博主视频在S.T.A.R.T各阶段的共同策略模式
+1. **key_findings**（关键结论）：只输出3-5条最关键的发现，按重要性排序
+   - `priority`：P1 / P2 / P3
+   - `scope`：common / unique / mixed
+   - `title`：一句话点明结论
+   - `insight`：具体是什么
+   - `evidence`：引用命中的视频序号
+   - `why_it_matters`：为什么它是关键因素
+   - `how_to_apply`：用户接下来应该怎么学、怎么复用
+2. **common_winning_patterns**（共性优秀点）：输出3-5条真正稳定复现的共性
+   - `pattern`
+   - `evidence`
+   - `why_it_works`
+   - `how_to_replicate`
+3. **unique_video_highlights**（单条视频独特点）：输出2-4条“个别视频特别出彩”的点
+   - `video_index`
+   - `video_label`
+   - `standout_point`
+   - `why_it_works`
+   - `what_to_borrow`
+   - `caution`
+4. **common_hooks**（共同钩子）：这些视频共同使用的流量钩子类型和策略
+5. **top_patterns**（高频模式）：出现频率最高的内容模式（如开场方式、文案结构等）
+6. **bgm_insights**（BGM洞察）：背景音乐选择的规律和趋势
+7. **hashtag_strategy**（标签策略）：标签使用的规律和建议
+8. **priority_actions**（优先动作）：给出3-5条最值得先执行的动作建议
+   - `priority`
+   - `action`
+   - `reason`
+   - `expected_gain`
+9. **content_recommendations**（内容建议）：基于以上分析，给出5条具体的内容创作优化建议
+10. **hook_formula**（钩子公式）：总结出一个可复用的“爆款公式”，如果不存在单一公式，要明确说明是“双路径/多路径”
+11. **common_start_patterns**（S.T.A.R.T共同模式）：总结该博主视频在S.T.A.R.T各阶段的共同策略模式
    - S (Stop)：共同的钩子截停策略
    - T (Tension)：共同的悬念制造方式
    - A (Authority)：共同的信任建立手法
    - R (Reveal)：共同的价值交付模式
    - T (Transfer)：共同的行动引导策略
-8. **script_template**（通用仿写模板）：基于爆款公式生成一份通用的S.T.A.R.T创作模板
+12. **script_template**（通用仿写模板）：基于爆款公式生成一份通用的S.T.A.R.T创作模板
 
 请严格按照以下JSON格式返回：
 ```json
 {{
+  "key_findings": [
+    {{
+      "priority": "P1",
+      "scope": "common",
+      "title": "...",
+      "insight": "...",
+      "evidence": "视频1、视频2、视频4",
+      "why_it_matters": "...",
+      "how_to_apply": "..."
+    }}
+  ],
+  "common_winning_patterns": [
+    {{
+      "pattern": "...",
+      "evidence": "视频1、视频3、视频4",
+      "why_it_works": "...",
+      "how_to_replicate": "..."
+    }}
+  ],
+  "unique_video_highlights": [
+    {{
+      "video_index": 2,
+      "video_label": "...",
+      "standout_point": "...",
+      "why_it_works": "...",
+      "what_to_borrow": "...",
+      "caution": "..."
+    }}
+  ],
   "common_hooks": "...",
   "top_patterns": "...",
   "bgm_insights": "...",
   "hashtag_strategy": "...",
+  "priority_actions": [
+    {{
+      "priority": "P1",
+      "action": "...",
+      "reason": "...",
+      "expected_gain": "..."
+    }}
+  ],
   "content_recommendations": "1. ...\\n2. ...\\n3. ...\\n4. ...\\n5. ...",
   "hook_formula": "...",
   "common_start_patterns": {{

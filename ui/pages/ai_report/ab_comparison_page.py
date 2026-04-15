@@ -26,14 +26,22 @@ from ui.components.theme import (
     SUCCESS,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
+    accent_button_style,
     card_style,
     input_style,
+    secondary_button_style,
 )
 from ui.pages.ai_report.ai_report_widgets import (
     AnalysisCard,
     EmptyState,
     build_script_template_content,
     build_structured_content,
+)
+from ui.pages.ai_report.report_utils import (
+    build_ab_report_markdown,
+    build_ab_report_summary,
+    build_ab_report_title,
+    save_report_markdown,
 )
 from ui.dialogs.selection_dialog_v2 import show_two_stage_selection
 from ui.components.video_list_manager import VideoListManager
@@ -92,6 +100,8 @@ class ABComparisonPage(QWidget):
         self._worker = None
         self._loading_base = ""
         self._loading_step = 0
+        self._current_report_title = ""
+        self._current_report_markdown = ""
         self._loading_timer = QTimer(self)
         self._loading_timer.timeout.connect(self._tick_loading)
         self._build_ui()
@@ -174,6 +184,17 @@ class ABComparisonPage(QWidget):
         top_bar.addWidget(title)
         
         top_bar.addStretch()
+
+        self.history_btn = QPushButton("历史报告")
+        self.history_btn.setStyleSheet(secondary_button_style())
+        self.history_btn.clicked.connect(self._open_history)
+        top_bar.addWidget(self.history_btn)
+
+        self.download_btn = QPushButton("下载报告")
+        self.download_btn.setStyleSheet(accent_button_style())
+        self.download_btn.setEnabled(False)
+        self.download_btn.clicked.connect(self._download_current_report)
+        top_bar.addWidget(self.download_btn)
         
         widget = QWidget()
         widget.setLayout(top_bar)
@@ -229,6 +250,8 @@ class ABComparisonPage(QWidget):
             self.video_list_manager.videos_a = []
             self.video_list_manager.videos_b = []
             self.video_list_manager._render_ab_list()
+        self._reset_report_cache()
+        self._render_empty()
     
     def _create_scroll_container(self):
         """创建报告容器"""
@@ -250,6 +273,61 @@ class ABComparisonPage(QWidget):
             layout.addWidget(widget)
         layout.addStretch()
     
+    def _reset_report_cache(self):
+        self._current_report_title = ""
+        self._current_report_markdown = ""
+        if hasattr(self, "download_btn"):
+            self.download_btn.setEnabled(False)
+
+    def _open_history(self):
+        self.main_window.ai_report_page.show_history()
+
+    def _download_current_report(self):
+        if self._current_report_markdown:
+            save_report_markdown(self, self._current_report_title, self._current_report_markdown)
+
+    def _update_current_report_cache(self, result: dict, group_a_label: str, group_b_label: str):
+        self._current_report_title = build_ab_report_title(group_a_label, group_b_label)
+        self._current_report_markdown = build_ab_report_markdown(
+            self._current_report_title,
+            result or {},
+            group_a_label,
+            group_b_label,
+        )
+        if hasattr(self, "download_btn"):
+            self.download_btn.setEnabled(bool(self._current_report_markdown))
+
+    def _save_report_history(self, payload: dict, result: dict):
+        from data.database import save_ai_report
+
+        group_a_label = payload.get("group_a_label", "A组")
+        group_b_label = payload.get("group_b_label", "B组")
+        title = build_ab_report_title(group_a_label, group_b_label)
+        markdown = build_ab_report_markdown(title, result or {}, group_a_label, group_b_label)
+        save_ai_report(
+            report_type="ab_comparison",
+            title=title,
+            subject_label=f"{group_a_label} vs {group_b_label}",
+            summary=build_ab_report_summary(result or {}, group_a_label, group_b_label),
+            source_payload=payload or {},
+            result_payload=result or {},
+            export_markdown=markdown,
+        )
+        self.main_window.ai_report_page.notify_report_saved()
+
+    def load_history_report(self, report: dict):
+        source_payload = report.get("source_payload", {}) or {}
+        if hasattr(self, "video_list_manager"):
+            self.video_list_manager.videos_a = list(source_payload.get("group_a_videos", []) or [])
+            self.video_list_manager.videos_b = list(source_payload.get("group_b_videos", []) or [])
+            self.video_list_manager._render_ab_list()
+        self.show_analysis(
+            report.get("result_payload", {}) or {},
+            source_payload.get("group_a_label", "A组"),
+            source_payload.get("group_b_label", "B组"),
+        )
+        self._show_status("已载入历史报告", "#6fe0a9")
+
     def _run_analysis_with_videos(self, video_groups):
         """执行分析（从视频列表管理器调用）"""
         if not isinstance(video_groups, dict):
@@ -319,6 +397,7 @@ class ABComparisonPage(QWidget):
         group_a_ids = [v["id"] for v in group_a_videos]
         group_b_ids = [v["id"] for v in group_b_videos]
         save_ab_comparison(group_a_ids, group_b_ids, result, group_a_label, group_b_label)
+        self._save_report_history(payload, result)
         
         self.show_analysis(result, group_a_label, group_b_label)
         self._show_status("AB对比分析已完成", "#6fe0a9")
@@ -386,6 +465,7 @@ class ABComparisonPage(QWidget):
     
     def show_analysis(self, result: dict, group_a_label: str = "A组", group_b_label: str = "B组"):
         """展示分析结果"""
+        self._update_current_report_cache(result, group_a_label, group_b_label)
         widgets = []
 
         winner = result.get("winner", "")

@@ -24,8 +24,10 @@ from ui.components.theme import (
     SUCCESS,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
+    accent_button_style,
     input_style,
     card_style,
+    secondary_button_style,
 )
 from ui.components.video_list_manager import VideoListManager
 from ui.dialogs.selection_dialog_v2 import show_two_stage_selection
@@ -34,6 +36,12 @@ from ui.pages.ai_report.ai_report_widgets import (
     EmptyState,
     build_script_template_content,
     get_subject_label,
+)
+from ui.pages.ai_report.report_utils import (
+    build_batch_report_markdown,
+    build_batch_report_summary,
+    build_batch_report_title,
+    save_report_markdown,
 )
 
 
@@ -75,6 +83,8 @@ class BatchAnalysisPage(QWidget):
         self.main_window = main_window
         self._external_batch_context = None
         self._worker = None
+        self._current_report_title = ""
+        self._current_report_markdown = ""
         self._build_ui()
 
     def _build_ui(self):
@@ -150,6 +160,17 @@ class BatchAnalysisPage(QWidget):
         title.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 20px; font-weight: 700;")
         top_bar.addWidget(title)
         top_bar.addStretch()
+
+        self.history_btn = QPushButton("历史报告")
+        self.history_btn.setStyleSheet(secondary_button_style())
+        self.history_btn.clicked.connect(self._open_history)
+        top_bar.addWidget(self.history_btn)
+
+        self.download_btn = QPushButton("下载报告")
+        self.download_btn.setStyleSheet(accent_button_style())
+        self.download_btn.setEnabled(False)
+        self.download_btn.clicked.connect(self._download_current_report)
+        top_bar.addWidget(self.download_btn)
 
         widget = QWidget()
         widget.setLayout(top_bar)
@@ -252,7 +273,59 @@ class BatchAnalysisPage(QWidget):
         self.video_list_manager._render_single_list()
         self.context_badge.setText("当前范围：未选择")
         self._show_status("准备就绪", "#a9c2e8")
+        self._reset_report_cache()
         self._render_empty()
+
+    def _reset_report_cache(self):
+        self._current_report_title = ""
+        self._current_report_markdown = ""
+        if hasattr(self, "download_btn"):
+            self.download_btn.setEnabled(False)
+
+    def _open_history(self):
+        self.main_window.ai_report_page.show_history()
+
+    def _download_current_report(self):
+        if self._current_report_markdown:
+            save_report_markdown(self, self._current_report_title, self._current_report_markdown)
+
+    def _update_current_report_cache(self, analysis: dict, username: str = ""):
+        subject = get_subject_label(username)
+        count = int(analysis.get("analyzed_videos_count", 0) or 0)
+        self._current_report_title = build_batch_report_title(subject, count)
+        self._current_report_markdown = build_batch_report_markdown(
+            self._current_report_title,
+            subject,
+            analysis or {},
+        )
+        if hasattr(self, "download_btn"):
+            self.download_btn.setEnabled(bool(self._current_report_markdown))
+
+    def _save_report_history(self, videos: list, analysis: dict, username: str = ""):
+        from data.database import save_ai_report
+
+        subject = get_subject_label(username)
+        title = build_batch_report_title(subject, int(analysis.get("analyzed_videos_count", 0) or 0))
+        markdown = build_batch_report_markdown(title, subject, analysis or {})
+        save_ai_report(
+            report_type="batch",
+            title=title,
+            subject_label=subject,
+            summary=build_batch_report_summary(analysis or {}),
+            source_payload={"videos": list(videos or []), "username": username or ""},
+            result_payload=analysis or {},
+            export_markdown=markdown,
+        )
+        self.main_window.ai_report_page.notify_report_saved()
+
+    def load_history_report(self, report: dict):
+        source_payload = report.get("source_payload", {}) or {}
+        videos = list(source_payload.get("videos", []) or [])
+        username = source_payload.get("username", "") or ""
+        self.video_list_manager.videos = videos
+        self.video_list_manager._render_single_list()
+        self.show_analysis(report.get("result_payload", {}) or {}, username)
+        self._show_status("已载入历史报告", "#6fe0a9")
 
     def _run_analysis_with_videos(self, videos):
         if not videos:
@@ -287,6 +360,7 @@ class BatchAnalysisPage(QWidget):
             self._handle_error("AI 返回为空，请检查模型配置")
             return
 
+        self._save_report_history(videos, result, username)
         self.show_analysis(result, username)
         self._show_status("批量规律分析已完成", "#6fe0a9")
 
@@ -319,7 +393,7 @@ class BatchAnalysisPage(QWidget):
     def _render_loading(self):
         panel = EmptyState(
             "正在进行批量规律分析",
-            "正在汇总高表现视频的共性结构、钩子与内容策略，请稍候。",
+            "正在提炼高表现视频的共性优势、单条独特点与优先学习动作，请稍候。",
         )
         note = QLabel("分析过程中界面会保持响应，完成后会自动展示结果。")
         note.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -333,23 +407,60 @@ class BatchAnalysisPage(QWidget):
             [
                 EmptyState(
                     "批量规律分析",
-                    "添加多个视频后开始分析，系统会总结共性结构、爆款公式和优化建议。",
+                    "添加多个视频后开始分析，系统会同时总结共性优秀点、单条视频独特点和优先优化动作。",
                 )
             ]
         )
 
     def show_analysis(self, analysis: dict, username: str = ""):
+        self._update_current_report_cache(analysis, username)
         count = analysis.get("analyzed_videos_count", 0)
         subject = get_subject_label(username)
 
         hero = self._build_hero(
             f"{subject} 的批量规律分析",
-            f"基于 {count} 条视频，提炼共性结构、钩子策略和复用建议。",
+            f"基于 {count} 条视频，区分哪些是稳定复现的共性优势，哪些是单条视频独有但值得重点借鉴的特色点。",
             "批量规律总结",
             "#6176ff",
         )
 
         widgets = [hero]
+
+        key_findings = self._build_highlight_section(
+            "关键结论",
+            analysis.get("key_findings", []),
+            "#6176ff",
+            "title",
+        )
+        if key_findings is not None:
+            widgets.append(key_findings)
+
+        common_highlights = self._build_highlight_section(
+            "共性优秀点",
+            analysis.get("common_winning_patterns", []),
+            "#7ad6a5",
+            "pattern",
+        )
+        if common_highlights is not None:
+            widgets.append(common_highlights)
+
+        unique_highlights = self._build_highlight_section(
+            "单条视频特色优秀点",
+            analysis.get("unique_video_highlights", []),
+            "#ff8b7a",
+            "video_label",
+        )
+        if unique_highlights is not None:
+            widgets.append(unique_highlights)
+
+        priority_actions = self._build_highlight_section(
+            "优先执行动作",
+            analysis.get("priority_actions", []),
+            "#87f1d7",
+            "action",
+        )
+        if priority_actions is not None:
+            widgets.append(priority_actions)
 
         formula_text = analysis.get("hook_formula", "")
         if formula_text:
@@ -405,6 +516,64 @@ class BatchAnalysisPage(QWidget):
     def _build_text_card(self, title: str, content: str, accent: str):
         return AnalysisCard(title, content, accent)
 
+    def _format_highlight_item(self, item: dict, primary_key: str) -> tuple[str, str]:
+        primary = str(item.get(primary_key) or item.get("title") or item.get("pattern") or item.get("action") or "").strip()
+        pieces = []
+
+        if item.get("priority"):
+            pieces.append(f"优先级：{item.get('priority')}")
+        if item.get("scope"):
+            scope_map = {"common": "共性", "unique": "独特", "mixed": "混合"}
+            pieces.append(f"类型：{scope_map.get(str(item.get('scope')), str(item.get('scope')))}")
+        if item.get("video_index"):
+            pieces.append(f"视频：视频{item.get('video_index')}")
+        if item.get("evidence"):
+            pieces.append(f"证据：{item.get('evidence')}")
+        if item.get("insight"):
+            pieces.append(f"结论：{item.get('insight')}")
+        if item.get("standout_point"):
+            pieces.append(f"亮点：{item.get('standout_point')}")
+        if item.get("why_it_matters"):
+            pieces.append(f"为什么关键：{item.get('why_it_matters')}")
+        if item.get("why_it_works"):
+            pieces.append(f"为什么有效：{item.get('why_it_works')}")
+        if item.get("how_to_apply"):
+            pieces.append(f"怎么用：{item.get('how_to_apply')}")
+        if item.get("how_to_replicate"):
+            pieces.append(f"怎么复用：{item.get('how_to_replicate')}")
+        if item.get("what_to_borrow"):
+            pieces.append(f"建议借鉴：{item.get('what_to_borrow')}")
+        if item.get("reason"):
+            pieces.append(f"原因：{item.get('reason')}")
+        if item.get("expected_gain"):
+            pieces.append(f"预期收益：{item.get('expected_gain')}")
+        if item.get("caution"):
+            pieces.append(f"注意：{item.get('caution')}")
+
+        content = "\n".join([part for part in pieces if part])
+        return primary or "重点", content or primary or "暂无内容"
+
+    def _build_highlight_section(self, title: str, items, accent: str, primary_key: str):
+        items = [item for item in list(items or []) if isinstance(item, dict)]
+        if not items:
+            return None
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        title_label = QLabel(title)
+        title_label.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 16px; font-weight: 700;")
+        layout.addWidget(title_label)
+
+        for item in items:
+            card_title, content = self._format_highlight_item(item, primary_key)
+            if content.strip():
+                layout.addWidget(AnalysisCard(card_title, content, accent))
+
+        return container
+
     def _build_start_patterns_section(self, patterns: dict):
         if not patterns or not isinstance(patterns, dict):
             return None
@@ -445,7 +614,7 @@ class BatchAnalysisPage(QWidget):
             ("高频内容模式", analysis.get("top_patterns", ""), "#7ad6a5"),
             ("BGM 洞察", analysis.get("bgm_insights", ""), "#83b2ff"),
             ("标签策略", analysis.get("hashtag_strategy", ""), "#ffc56f"),
-            ("优化建议", analysis.get("content_recommendations", ""), "#87f1d7"),
+            ("补充建议", analysis.get("content_recommendations", ""), "#87f1d7"),
         ]
 
         for idx, (title, content, accent) in enumerate(cards):

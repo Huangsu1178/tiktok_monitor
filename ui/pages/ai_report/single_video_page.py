@@ -46,6 +46,12 @@ from ui.pages.ai_report.ai_report_widgets import (
     format_number,
     get_subject_label,
 )
+from ui.pages.ai_report.report_utils import (
+    build_single_report_markdown,
+    build_single_report_summary,
+    build_single_report_title,
+    save_report_markdown,
+)
 from ui.dialogs.selection_dialog_v2 import show_two_stage_selection
 from ui.components.video_list_manager import VideoListManager
 
@@ -92,6 +98,8 @@ class SingleVideoPage(QWidget):
         self._worker = None
         self._loading_base = ""
         self._loading_step = 0
+        self._current_report_title = ""
+        self._current_report_markdown = ""
         self._loading_timer = QTimer(self)
         self._loading_timer.timeout.connect(self._tick_loading)
         self._build_ui()
@@ -182,6 +190,17 @@ class SingleVideoPage(QWidget):
         top_bar.addWidget(title)
         
         top_bar.addStretch()
+
+        self.history_btn = QPushButton("历史报告")
+        self.history_btn.setStyleSheet(secondary_button_style())
+        self.history_btn.clicked.connect(self._open_history)
+        top_bar.addWidget(self.history_btn)
+
+        self.download_btn = QPushButton("下载报告")
+        self.download_btn.setStyleSheet(accent_button_style())
+        self.download_btn.setEnabled(False)
+        self.download_btn.clicked.connect(self._download_current_report)
+        top_bar.addWidget(self.download_btn)
         
         widget = QWidget()
         widget.setLayout(top_bar)
@@ -267,8 +286,61 @@ class SingleVideoPage(QWidget):
             self.video_list_manager.videos = []
             self.video_list_manager._render_single_list()
         self._show_status("鍑嗗灏辩华", "#a9c2e8")
+        self._reset_report_cache()
         self._render_empty()
     
+    def _reset_report_cache(self):
+        self._current_report_title = ""
+        self._current_report_markdown = ""
+        if hasattr(self, "download_btn"):
+            self.download_btn.setEnabled(False)
+
+    def _open_history(self):
+        self.main_window.ai_report_page.show_history()
+
+    def _download_current_report(self):
+        if self._current_report_markdown:
+            save_report_markdown(self, self._current_report_title, self._current_report_markdown)
+
+    def _update_current_report_cache(self, video: dict, analysis: dict, username: str = ""):
+        subject = get_subject_label(username)
+        self._current_report_title = build_single_report_title(subject)
+        self._current_report_markdown = build_single_report_markdown(
+            self._current_report_title,
+            subject,
+            video or {},
+            analysis or {},
+        )
+        if hasattr(self, "download_btn"):
+            self.download_btn.setEnabled(bool(self._current_report_markdown))
+
+    def _save_report_history(self, video: dict, analysis: dict, username: str = ""):
+        from data.database import save_ai_report
+
+        subject = get_subject_label(username)
+        title = build_single_report_title(subject)
+        markdown = build_single_report_markdown(title, subject, video or {}, analysis or {})
+        save_ai_report(
+            report_type="single",
+            title=title,
+            subject_label=subject,
+            summary=build_single_report_summary(video or {}, analysis or {}),
+            source_payload={"video": video or {}, "username": username or ""},
+            result_payload=analysis or {},
+            export_markdown=markdown,
+        )
+        self.main_window.ai_report_page.notify_report_saved()
+
+    def load_history_report(self, report: dict):
+        source_payload = report.get("source_payload", {}) or {}
+        video = source_payload.get("video", {}) or {}
+        username = source_payload.get("username", "") or ""
+        if hasattr(self, "video_list_manager"):
+            self.video_list_manager.videos = [video] if video else []
+            self.video_list_manager._render_single_list()
+        self.show_analysis(video, report.get("result_payload", {}) or {}, username)
+        self._show_status("已载入历史报告", "#6fe0a9")
+
     def _run_analysis_with_videos(self, videos):
         """执行分析（从视频列表管理器调用）"""
         if not videos:
@@ -310,6 +382,7 @@ class SingleVideoPage(QWidget):
         
         from data.database import save_ai_analysis
         save_ai_analysis(video["id"], result)
+        self._save_report_history(video, result, username)
         self.show_analysis(video, result, username)
         self._show_status("单视频分析已完成", "#6fe0a9")
     
@@ -390,6 +463,7 @@ class SingleVideoPage(QWidget):
     
     def show_analysis(self, video: dict, analysis: dict, username: str = ""):
         """展示分析结果"""
+        self._update_current_report_cache(video, analysis, username)
         desc = video.get("description") or video.get("title") or "无描述"
         subject = get_subject_label(username)
         metrics = [

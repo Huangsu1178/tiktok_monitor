@@ -3,6 +3,7 @@ TikTok Monitor - TikTok AI Analysis Skill
 """
 
 import json
+import re
 import time
 from datetime import datetime
 from statistics import median
@@ -92,22 +93,16 @@ class TikTokAIAnalysisSkill(AIClientMixin):
         if not videos:
             print("[AI Analysis] ⚠️ 视频列表为空")
             return None
+        sample_videos = list(videos[:10])
         if not self.is_available():
             print("[AI Analysis] ⚠️ AI服务不可用，使用模拟批量分析")
-            return self._mock_batch_analysis(videos)
+            return self._mock_batch_analysis(sample_videos)
 
         print(f"[AI Analysis] 准备批量分析数据...")
         videos_data = "\n".join(
-            [
-                (
-                    f"{i}. 描述：{v.get('description', v.get('title', ''))[:80]} | "
-                    f"播放：{v.get('play_count', 0):,} | 点赞：{v.get('like_count', 0):,} | "
-                    f"标签：{v.get('hashtags', '')} | BGM：{v.get('music_name', '')}"
-                )
-                for i, v in enumerate(videos[:10], 1)
-            ]
+            [self._format_batch_video_input(i, v) for i, v in enumerate(sample_videos, 1)]
         )
-        prompt = BATCH_ANALYSIS_PROMPT.format(count=len(videos[:10]), videos_data=videos_data)
+        prompt = BATCH_ANALYSIS_PROMPT.format(count=len(sample_videos), videos_data=videos_data)
         messages = [
             {"role": "system", "content": "你是专业的 TikTok 内容策略分析师，请用中文回答。"},
             {"role": "user", "content": prompt},
@@ -125,22 +120,23 @@ class TikTokAIAnalysisSkill(AIClientMixin):
         
         if response is None:
             print("[AI Analysis] ❌ AI API批量调用失败，使用模拟分析")
-            return self._mock_batch_analysis(videos)
+            return self._mock_batch_analysis(sample_videos)
 
         print(f"[AI Analysis] 收到AI批量响应，正在解析...")
         raw_response = self._extract_response_text(response)
         result = self._parse_json_response(raw_response)
         if not result:
             print("[AI Analysis] ⚠️ 批量分析JSON解析失败，使用模拟分析")
-            return self._mock_batch_analysis(videos)
+            return self._mock_batch_analysis(sample_videos)
 
+        result = self._normalize_batch_analysis_result(result, sample_videos)
         result["raw_response"] = raw_response
-        result["analyzed_videos_count"] = len(videos[:10])
+        result["analyzed_videos_count"] = len(sample_videos)
         result["username"] = username
         end_timestamp = datetime.now().strftime("%H:%M:%S")
         elapsed = time.time() - start_time
         print(f"[AI Analysis] [{end_timestamp}] 批量分析完成 | 总耗时: {elapsed:.1f}s")
-        print(f"[AI Analysis] ✅ 批量分析完成，分析了 {len(videos[:10])} 个视频")
+        print(f"[AI Analysis] ✅ 批量分析完成，分析了 {len(sample_videos)} 个视频")
         return result
 
     def analyze_competitors(self, creators_data: list) -> Optional[Dict[str, Any]]:
@@ -342,6 +338,416 @@ class TikTokAIAnalysisSkill(AIClientMixin):
             "total_videos_analyzed": len(videos),
         }
 
+    def _clean_text(self, value: Any, limit: int = 80) -> str:
+        text = str(value or "").replace("\r", " ").replace("\n", " ").strip()
+        text = re.sub(r"\s+", " ", text)
+        if limit and len(text) > limit:
+            return text[:limit].rstrip() + "..."
+        return text
+
+    def _extract_text_items(self, text: Any, max_items: int = 5) -> List[str]:
+        normalized = str(text or "").replace("\\n", "\n").replace("\r", "\n")
+        normalized = re.sub(r"\n{2,}", "\n", normalized)
+        items = []
+        for line in normalized.split("\n"):
+            line = re.sub(r"^\s*(?:[-•*]|\d+\.)\s*", "", line).strip()
+            if line:
+                items.append(line)
+        if len(items) <= 1:
+            chunks = [
+                chunk.strip()
+                for chunk in re.split(r"[；。;]", normalized)
+                if chunk.strip()
+            ]
+            items = chunks or items
+        deduped = []
+        seen = set()
+        for item in items:
+            if item in seen:
+                continue
+            seen.add(item)
+            deduped.append(item)
+        return deduped[:max_items]
+
+    def _video_signal_map(self, video: dict) -> Dict[str, bool]:
+        text = " ".join(
+            [
+                str(video.get("description") or video.get("title") or ""),
+                str(video.get("hashtags") or ""),
+                str(video.get("music_name") or ""),
+            ]
+        ).lower()
+        return {
+            "result": bool(re.search(r"\b\d+(\.\d+)?\b", text))
+            or any(token in text for token in ["score", "band", "got", "achieved", "reached", "从", "到", "分"]),
+            "emotion": any(
+                token in text
+                for token in [
+                    "can't believe", "finally", "almost gave up", "cry", "😭", "不敢相信",
+                    "想放弃", "终于", "崩溃", "绝望", "救命",
+                ]
+            ),
+            "question": "?" in text or "？" in text or any(token in text for token in ["how", "why", "谁能", "吗", "挑战"]),
+            "tool": any(
+                token in text
+                for token in ["website", "site", "tool", "app", "template", "method", "tips", "网站", "工具", "方法", "技巧"]
+            ),
+            "timeframe": any(
+                token in text
+                for token in ["day", "days", "week", "weeks", "month", "months", "minute", "minutes", "天", "周", "月", "两周"]
+            ),
+        }
+
+    def _format_batch_video_input(self, index: int, video: dict) -> str:
+        metrics = self.calculate_engagement_metrics(video)
+        return (
+            f"视频{index} | 描述：{self._clean_text(video.get('description') or video.get('title') or '', 90)} | "
+            f"播放：{video.get('play_count', 0):,} | 点赞：{video.get('like_count', 0):,} | "
+            f"评论：{video.get('comment_count', 0):,} | 分享：{video.get('share_count', 0):,} | "
+            f"互动率：{metrics['engagement_rate']:.2f}% | 时长：{video.get('duration', 0) or 0}s | "
+            f"标签：{self._clean_text(video.get('hashtags', ''), 50)} | "
+            f"BGM：{self._clean_text(video.get('music_name', ''), 40)}"
+        )
+
+    def _build_signal_summary(self, videos: List[dict]) -> List[Dict[str, str]]:
+        signal_catalog = {
+            "result": {
+                "pattern": "结果/分数/达成目标前置",
+                "why_it_works": "先把成果亮出来，能快速建立可信度，也让观众立刻知道这条内容值不值得继续看。",
+                "how_to_replicate": "把最有说服力的结果放在第一句或第一屏，再补过程和方法。",
+            },
+            "emotion": {
+                "pattern": "真实情绪冲突放大记忆点",
+                "why_it_works": "强情绪会提升代入感，让同样在经历这个问题的人更容易停留。",
+                "how_to_replicate": "开头先说最真实的挫败、惊喜或转折，再接解决方案。",
+            },
+            "question": {
+                "pattern": "疑问句/挑战句制造继续观看理由",
+                "why_it_works": "问题没有立刻被回答时，会自然形成悬念，推动用户继续看下去。",
+                "how_to_replicate": "把目标、限制条件或反常识判断写成一句问题。",
+            },
+            "tool": {
+                "pattern": "具体工具/网站/方法作为即时价值",
+                "why_it_works": "观众会觉得看完就能拿走一个可执行资源，价值兑现更直接。",
+                "how_to_replicate": "尽量给出具体资源名、步骤名或可立刻尝试的动作，而不是空说“有方法”。",
+            },
+            "timeframe": {
+                "pattern": "明确时间跨度提升冲击力",
+                "why_it_works": "当结果和时间被同时说清，变化会更有戏剧性，也更像可复制案例。",
+                "how_to_replicate": "在结果旁边补充“多久做到”“多久见效”，形成完整承诺。",
+            },
+        }
+
+        evidence_map: Dict[str, List[int]] = {key: [] for key in signal_catalog}
+        for index, video in enumerate(videos, 1):
+            for key, matched in self._video_signal_map(video).items():
+                if matched and key in evidence_map:
+                    evidence_map[key].append(index)
+
+        summaries = []
+        threshold = 2 if len(videos) >= 3 else 1
+        for key, meta in signal_catalog.items():
+            evidence = evidence_map.get(key, [])
+            if len(evidence) < threshold:
+                continue
+            summaries.append(
+                {
+                    "pattern": meta["pattern"],
+                    "evidence": "、".join([f"视频{i}" for i in evidence]),
+                    "why_it_works": meta["why_it_works"],
+                    "how_to_replicate": meta["how_to_replicate"],
+                    "count": len(evidence),
+                }
+            )
+
+        summaries.sort(key=lambda item: item.get("count", 0), reverse=True)
+        return summaries
+
+    def _build_unique_highlights(self, videos: List[dict]) -> List[Dict[str, str]]:
+        signal_counts: Dict[str, int] = {}
+        signal_names = {
+            "result": "结果先行",
+            "emotion": "情绪冲突",
+            "question": "提问/挑战",
+            "tool": "具体工具",
+            "timeframe": "时间压缩",
+        }
+        for video in videos:
+            for key, matched in self._video_signal_map(video).items():
+                if matched:
+                    signal_counts[key] = signal_counts.get(key, 0) + 1
+
+        highlights = []
+        for index, video in enumerate(videos, 1):
+            signals = [key for key, matched in self._video_signal_map(video).items() if matched]
+            if not signals:
+                continue
+            unique_signals = [key for key in signals if signal_counts.get(key, 0) == 1]
+            standout_key = unique_signals[0] if unique_signals else signals[0]
+            label = self._clean_text(video.get("description") or video.get("title") or f"视频{index}", 36)
+
+            point_map = {
+                "result": (
+                    "用非常具体的结果证明内容可信",
+                    "结果说得越具体，观众越容易相信这不是空泛经验，而是真实验证过的方法。",
+                    "优先借它的“结果表达方式”，比如分数、前后变化、达成节点。",
+                    "结果必须可自证，否则容易变成夸张口号。",
+                ),
+                "emotion": (
+                    "把挣扎或惊喜情绪放到台前",
+                    "这类表达会让观众先感受到‘你和我一样’，再愿意听方法。",
+                    "可以借它的情绪切口，但要基于真实经历，不要硬演。",
+                    "情绪过满但没有价值兑现，会让人觉得只是在卖惨或表演。",
+                ),
+                "question": (
+                    "通过问题或挑战句先拉住好奇心",
+                    "观众会本能地想知道这个问题怎么回答、这个挑战能不能做到。",
+                    "适合把限制条件写进问题里，例如时间、目标、难度。",
+                    "问题不能太空，最好后面马上兑现答案方向。",
+                ),
+                "tool": (
+                    "把具体网站/资源/方法做成主卖点",
+                    "比起抽象建议，具体工具更像观众能立刻带走的收获。",
+                    "复用时尽量直接点名资源，并补一句它解决什么问题。",
+                    "只给工具名不给使用场景，会让价值感下降。",
+                ),
+                "timeframe": (
+                    "用压缩时间线增强戏剧性",
+                    "同样的结果，一旦绑定明确时间窗口，冲击力会明显放大。",
+                    "可以借它的时间表达，但时间承诺必须真实且和方法匹配。",
+                    "时间线说得太夸张，容易引发质疑。",
+                ),
+            }
+            standout_point, why_it_works, what_to_borrow, caution = point_map.get(
+                standout_key,
+                (
+                    "表达中有清晰且直接的利益点",
+                    "利益点越具体，观众越容易快速判断这条视频值不值得看。",
+                    "借它的表达密度和利益点前置方式。",
+                    "不要只学表面话术，要保留真正的价值兑现。",
+                ),
+            )
+            highlights.append(
+                {
+                    "video_index": index,
+                    "video_label": label,
+                    "standout_point": standout_point,
+                    "why_it_works": why_it_works,
+                    "what_to_borrow": what_to_borrow,
+                    "caution": caution,
+                    "score": video.get("play_count", 0) + video.get("like_count", 0),
+                    "signal_name": signal_names.get(standout_key, "独特点"),
+                }
+            )
+
+        highlights.sort(key=lambda item: item.get("score", 0), reverse=True)
+        return highlights[:4]
+
+    def _normalize_key_findings(self, items: Any, fallback_patterns: List[Dict[str, str]], fallback_unique: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        normalized = []
+        for index, item in enumerate(items or [], 1):
+            if not isinstance(item, dict):
+                continue
+            normalized.append(
+                {
+                    "priority": str(item.get("priority") or f"P{index}"),
+                    "scope": str(item.get("scope") or "common"),
+                    "title": self._clean_text(item.get("title") or item.get("pattern") or item.get("insight"), 48),
+                    "insight": str(item.get("insight") or item.get("pattern") or "").strip(),
+                    "evidence": str(item.get("evidence") or "").strip(),
+                    "why_it_matters": str(item.get("why_it_matters") or item.get("why_it_works") or "").strip(),
+                    "how_to_apply": str(item.get("how_to_apply") or item.get("how_to_replicate") or item.get("what_to_borrow") or "").strip(),
+                }
+            )
+
+        if normalized:
+            return normalized[:5]
+
+        fallback = []
+        for index, item in enumerate(fallback_patterns[:3], 1):
+            fallback.append(
+                {
+                    "priority": f"P{index}",
+                    "scope": "common",
+                    "title": item.get("pattern", ""),
+                    "insight": item.get("pattern", ""),
+                    "evidence": item.get("evidence", ""),
+                    "why_it_matters": item.get("why_it_works", ""),
+                    "how_to_apply": item.get("how_to_replicate", ""),
+                }
+            )
+        if fallback_unique:
+            first_unique = fallback_unique[0]
+            fallback.append(
+                {
+                    "priority": f"P{len(fallback) + 1}",
+                    "scope": "unique",
+                    "title": f"视频{first_unique.get('video_index', '')}的独特点值得单独学",
+                    "insight": first_unique.get("standout_point", ""),
+                    "evidence": f"视频{first_unique.get('video_index', '')}",
+                    "why_it_matters": first_unique.get("why_it_works", ""),
+                    "how_to_apply": first_unique.get("what_to_borrow", ""),
+                }
+            )
+        return fallback[:5]
+
+    def _normalize_common_patterns(self, items: Any, fallback_patterns: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        normalized = []
+        for item in items or []:
+            if not isinstance(item, dict):
+                continue
+            normalized.append(
+                {
+                    "pattern": str(item.get("pattern") or item.get("title") or "").strip(),
+                    "evidence": str(item.get("evidence") or "").strip(),
+                    "why_it_works": str(item.get("why_it_works") or item.get("why_it_matters") or "").strip(),
+                    "how_to_replicate": str(item.get("how_to_replicate") or item.get("how_to_apply") or "").strip(),
+                }
+            )
+        if normalized:
+            return normalized[:5]
+        return [
+            {
+                "pattern": str(item.get("pattern") or "").strip(),
+                "evidence": str(item.get("evidence") or "").strip(),
+                "why_it_works": str(item.get("why_it_works") or "").strip(),
+                "how_to_replicate": str(item.get("how_to_replicate") or "").strip(),
+            }
+            for item in fallback_patterns[:5]
+            if isinstance(item, dict)
+        ]
+
+    def _normalize_unique_highlights(self, items: Any, fallback_unique: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        normalized = []
+        for item in items or []:
+            if not isinstance(item, dict):
+                continue
+            normalized.append(
+                {
+                    "video_index": item.get("video_index", ""),
+                    "video_label": str(item.get("video_label") or item.get("title") or "").strip(),
+                    "standout_point": str(item.get("standout_point") or item.get("insight") or "").strip(),
+                    "why_it_works": str(item.get("why_it_works") or item.get("why_it_matters") or "").strip(),
+                    "what_to_borrow": str(item.get("what_to_borrow") or item.get("how_to_apply") or "").strip(),
+                    "caution": str(item.get("caution") or "").strip(),
+                }
+            )
+        if normalized:
+            return normalized[:4]
+        return [
+            {
+                "video_index": item.get("video_index", ""),
+                "video_label": str(item.get("video_label") or "").strip(),
+                "standout_point": str(item.get("standout_point") or "").strip(),
+                "why_it_works": str(item.get("why_it_works") or "").strip(),
+                "what_to_borrow": str(item.get("what_to_borrow") or "").strip(),
+                "caution": str(item.get("caution") or "").strip(),
+            }
+            for item in fallback_unique[:4]
+            if isinstance(item, dict)
+        ]
+
+    def _normalize_priority_actions(self, items: Any, fallback_patterns: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        normalized = []
+        for index, item in enumerate(items or [], 1):
+            if not isinstance(item, dict):
+                continue
+            normalized.append(
+                {
+                    "priority": str(item.get("priority") or f"P{index}"),
+                    "action": str(item.get("action") or item.get("suggestion") or "").strip(),
+                    "reason": str(item.get("reason") or item.get("why_this_matters") or "").strip(),
+                    "expected_gain": str(item.get("expected_gain") or item.get("expected_impact") or "").strip(),
+                }
+            )
+        if normalized:
+            return normalized[:5]
+
+        fallback = []
+        for index, item in enumerate(fallback_patterns[:4], 1):
+            fallback.append(
+                {
+                    "priority": f"P{index}",
+                    "action": item.get("how_to_replicate", ""),
+                    "reason": item.get("why_it_works", ""),
+                    "expected_gain": "提升开场截停、价值感知和内容复用稳定性。",
+                }
+            )
+        return fallback
+
+    def _compose_common_hooks_text(self, patterns: List[Dict[str, str]], fallback_text: str = "") -> str:
+        if patterns:
+            return "；".join([f"{item['pattern']}（{item['evidence']}）" for item in patterns[:3] if item.get("pattern")])
+        return str(fallback_text or "").strip()
+
+    def _compose_top_patterns_text(self, patterns: List[Dict[str, str]], fallback_text: str = "") -> str:
+        if patterns:
+            return "\n".join(
+                [
+                    f"{idx}. {item['pattern']}：{item['why_it_works']}"
+                    for idx, item in enumerate(patterns[:5], 1)
+                    if item.get("pattern")
+                ]
+            )
+        return str(fallback_text or "").strip()
+
+    def _compose_priority_recommendations(self, actions: List[Dict[str, str]], fallback_text: str = "") -> str:
+        if actions:
+            return "\n".join(
+                [
+                    f"{idx}. {item['action']}：{item['reason']}"
+                    for idx, item in enumerate(actions[:5], 1)
+                    if item.get("action")
+                ]
+            )
+        return str(fallback_text or "").strip()
+
+    def _compose_hook_formula(self, patterns: List[Dict[str, str]], fallback_text: str = "") -> str:
+        pattern_names = [item.get("pattern", "") for item in patterns[:4] if item.get("pattern")]
+        if len(pattern_names) >= 3:
+            return " + ".join(pattern_names[:3])
+        if pattern_names:
+            return " + ".join(pattern_names)
+        return str(fallback_text or "").strip()
+
+    def _normalize_batch_analysis_result(self, result: dict, videos: List[dict]) -> Dict[str, Any]:
+        normalized = dict(result or {})
+        fallback_patterns = self._build_signal_summary(videos)
+        fallback_unique = self._build_unique_highlights(videos)
+
+        normalized["key_findings"] = self._normalize_key_findings(
+            normalized.get("key_findings"),
+            fallback_patterns,
+            fallback_unique,
+        )
+        normalized["common_winning_patterns"] = self._normalize_common_patterns(
+            normalized.get("common_winning_patterns"),
+            fallback_patterns,
+        )
+        normalized["unique_video_highlights"] = self._normalize_unique_highlights(
+            normalized.get("unique_video_highlights"),
+            fallback_unique,
+        )
+        normalized["priority_actions"] = self._normalize_priority_actions(
+            normalized.get("priority_actions"),
+            normalized["common_winning_patterns"],
+        )
+
+        normalized["common_hooks"] = str(normalized.get("common_hooks") or "").strip() or self._compose_common_hooks_text(
+            normalized["common_winning_patterns"]
+        )
+        normalized["top_patterns"] = str(normalized.get("top_patterns") or "").strip() or self._compose_top_patterns_text(
+            normalized["common_winning_patterns"]
+        )
+        normalized["content_recommendations"] = str(normalized.get("content_recommendations") or "").strip() or self._compose_priority_recommendations(
+            normalized["priority_actions"]
+        )
+        normalized["hook_formula"] = str(normalized.get("hook_formula") or "").strip() or self._compose_hook_formula(
+            normalized["common_winning_patterns"]
+        )
+        normalized["analyzed_videos_count"] = int(normalized.get("analyzed_videos_count", len(videos)) or len(videos))
+        return normalized
+
     def generate_hook_library_entry(self, video: dict, analysis: dict) -> Dict[str, Any]:
         metrics = self.calculate_engagement_metrics(video)
         return {
@@ -400,29 +806,35 @@ class TikTokAIAnalysisSkill(AIClientMixin):
         }
 
     def _mock_batch_analysis(self, videos: list) -> Dict[str, Any]:
-        return {
-            "common_hooks": "这批视频普遍使用结果前置、痛点切入和反差展示来争取前 3 秒停留。",
-            "top_patterns": "1. 先抛结论\n2. 再补过程\n3. 结尾追加互动问题或行动建议",
-            "bgm_insights": "高表现内容更偏向节奏明确、辨识度高的 BGM，而不是复杂配乐。",
-            "hashtag_strategy": "建议 1 个大流量标签 + 2 个垂类标签 + 1-2 个场景标签。",
-            "content_recommendations": (
-                "1. 开头直接亮结果。\n"
-                "2. 时长控制在 15-30 秒。\n"
-                "3. 关键句必须上字幕。\n"
-                "4. 结尾引导评论或收藏。"
-            ),
-            "hook_formula": "痛点/结果前置 -> 过程拆解 -> 情绪强化 -> 行动召唤",
+        base_result = {
+            "key_findings": [],
+            "common_winning_patterns": [],
+            "unique_video_highlights": [],
+            "common_hooks": "这批视频更像是在反复验证几种稳定有效的开场逻辑，而不是单纯依赖某个话题热点。",
+            "top_patterns": "",
+            "bgm_insights": "BGM更像放大器而不是决定因素。真正拉开差距的通常还是开场价值表达、情绪冲突和信息兑现速度。",
+            "hashtag_strategy": "优先保证核心主题词和痛点词清晰，再用少量垂类标签补充分发边界；标签不是主因时不要写太重。",
+            "priority_actions": [],
+            "content_recommendations": "",
+            "hook_formula": "",
             "common_start_patterns": {
-                "stop": "多数视频采用痛点前置或数字冲击型钩子截停用户",
-                "tension": "常用疑问句或'你一定不知道'句式制造悬念",
-                "authority": "通过展示成果数据或专业身份快速建立信任",
-                "reveal": "倾向于使用3步法或清单式交付核心价值",
-                "transfer": "结尾常用'点赞收藏'或'评论区告诉我'引导互动"
+                "stop": "优先把结果、冲突或目标压到开头，让用户第一眼知道为什么要继续看。",
+                "tension": "通过疑问句、限制条件或未揭晓的方法制造继续观看的理由。",
+                "authority": "用分数、达成结果、亲身经历或真实资源背书快速建立可信度。",
+                "reveal": "尽量在前半段就给出核心工具、方法或关键步骤，不拖到结尾。",
+                "transfer": "结尾更适合引导收藏、评论或继续追问细节，而不是空泛地说“点个关注”。",
             },
-            "script_template": "S (钩子): [结合该博主最常用的钩子类型，抛出目标受众的核心痛点]\nT (悬念): [用该博主惯用的悬念手法，暗示即将揭晓答案]\nA (信任): [模仿该博主的信任建立方式]\nR (交付): [按照该博主的内容节奏，分步交付价值]\nT (引导): [使用该博主最有效的CTA话术引导互动]",
-            "raw_response": "[mock batch analysis]",
-            "analyzed_videos_count": len(videos[:10]),
+            "script_template": (
+                "S (钩子): [先亮结果/冲突/目标，让人立刻知道这条内容值不值得看]\n"
+                "T (悬念): [补一句限制条件、错误做法或尚未揭晓的关键方法，制造继续看的理由]\n"
+                "A (信任): [用真实结果、亲身经历或可验证资源建立可信度]\n"
+                "R (交付): [尽快给出方法/工具/步骤，并说明它具体解决什么问题]\n"
+                "T (引导): [在价值交付后引导评论、收藏或提问，推动下一次互动]"
+            ),
         }
+        normalized = self._normalize_batch_analysis_result(base_result, list(videos[:10]))
+        normalized["raw_response"] = "[mock batch analysis]"
+        return normalized
 
     def _mock_hook_tagging(self, hook_analysis: dict) -> Dict[str, Any]:
         return {

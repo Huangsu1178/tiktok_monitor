@@ -1,172 +1,200 @@
-# 🎬 Short Video Monitor - TikTok/抖音双平台监控与分析工具
+# Short Video Monitor
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![PyQt6](https://img.shields.io/badge/UI-PyQt6-green.svg)](https://www.riverbankcomputing.com/software/pyqt/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![SQLite](https://img.shields.io/badge/database-SQLite-0f766e.svg)](https://www.sqlite.org/)
 
-> 一款本地运行的桌面应用程序，用于追踪TikTok/抖音博主视频表现，AI分析流量钩子，辅助内容创作决策。
+本项目是一个本地运行的桌面应用，用于监控 TikTok / 抖音账号、抓取视频数据，并结合 Gemini 模型生成结构化 AI 分析报告，帮助做选题、拆解爆款和内容复盘。
 
-## ✨ 核心功能
+## 核心能力
 
-- 📊 **博主管理**：添加、删除、配置需要监控的博主账号
-- ⏰ **定时抓取**：自动抓取博主最新视频数据（可配置间隔）
-- 📈 **数据采集**：获取播放量、点赞数、评论数、分享数等关键指标
-- 🎥 **无水印下载**：支持视频下载，用于深度内容分析
-- 🤖 **AI流量钩子分析**：调用大模型识别开场设计、BGM策略、文案风格等钩子元素
-- 📋 **批量规律总结**：对Top视频进行批量分析，提炼爆款内容公式
-- 🎯 **双平台支持**：同时支持 TikTok 和 抖音 平台监控
+- 双平台账号监控：统一管理 TikTok 和抖音账号
+- 视频数据抓取：采集播放、点赞、评论、分享、发布时间等字段
+- 自动调度：支持按间隔定时抓取，也支持手动立即抓取
+- 无水印下载：支持下载视频到本地做进一步分析
+- AI 报告中心：支持单视频分析、批量规律分析、AB 对比分析、历史报告回看
+- 本地数据存储：使用 SQLite 保存账号、视频、抓取日志和 AI 报告
+- 设置页可视化配置：支持在界面中修改 Gemini、代理、下载路径、抓取间隔等设置
 
-## 🚀 快速开始
-
-### 环境要求
+## 当前技术栈
 
 - Python 3.11+
-- 操作系统：Windows 10/11、macOS 12+、Ubuntu 20.04+
+- PyQt6
+- Playwright
+- yt-dlp
+- APScheduler
+- google-generativeai
+- SQLite
 
-### 安装步骤
+## 快速开始
+
+### 1. 安装依赖
 
 ```bash
-# 1. 克隆项目
-git clone <repository-url>
-cd tiktok_monitor
-
-# 2. 安装Python依赖
 pip install -r requirements.txt
-
-# 3. 安装Playwright浏览器内核
 python -m playwright install chromium
+```
 
-# 4. 配置API密钥（必需）
-cp .env.example .env
-# 编辑 .env 文件，填入你的 OpenAI API Key
+### 2. 配置环境变量
 
-# 5. 运行程序
+推荐先复制模板文件：
+
+```powershell
+Copy-Item .env.example .env
+```
+
+然后至少填写以下配置：
+
+```env
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-2.5-flash
+```
+
+说明：
+
+- `GEMINI_API_KEY` 为 AI 分析必填项
+- `GEMINI_MODEL` 可选，未显式设置时代码默认使用 `gemini-2.0-flash`
+- 应用启动时如果发现缺少 `.env`，会尝试从 `.env.example` 自动生成
+
+### 3. 启动应用
+
+```bash
 python main.py
 ```
 
-> 📖 **详细配置指南**：查阅 [SETUP_GUIDE.md](SETUP_GUIDE.md) 获取完整配置说明
+## 环境变量说明
 
-## ⚙️ 配置说明
+项目当前主要使用 Gemini 配置，常用项如下：
 
-### 必需配置
+| 变量名 | 说明 | 是否必填 |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | Gemini API Key | 是 |
+| `GEMINI_MODEL` | 使用的模型名，例如 `gemini-2.5-flash` | 否 |
+| `MAX_VIDEOS_PER_FETCH` | 每次抓取的最大视频数 | 否 |
+| `AUTO_FETCH_ENABLED` | 是否启用自动抓取，`0` 或 `1` | 否 |
+| `FETCH_INTERVAL` | 自动抓取间隔，单位小时 | 否 |
+| `DOWNLOAD_PATH` | 视频下载目录 | 否 |
+| `PROXY_URL` | 抓取时使用的代理地址 | 否 |
+| `LOG_LEVEL` | 日志级别，如 `INFO`、`DEBUG` | 否 |
 
-**⚠️ 首次使用必须配置 API Key！**
+示例：
+
+```env
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-2.5-flash
+MAX_VIDEOS_PER_FETCH=20
+AUTO_FETCH_ENABLED=0
+FETCH_INTERVAL=1.0
+DOWNLOAD_PATH=
+PROXY_URL=
+LOG_LEVEL=INFO
+```
+
+## 使用流程
+
+### 1. 添加监控账号
+
+- TikTok 支持输入用户名或主页链接
+- 抖音建议输入主页链接或分享链接
+- 账号添加后会保存到本地 SQLite 数据库
+
+### 2. 抓取视频数据
+
+- 可在账号管理页对单个账号立即抓取
+- 也可一键抓取全部启用中的账号
+- 启用自动抓取后，调度器会按设置的间隔执行任务
+
+### 3. 生成 AI 报告
+
+AI 报告中心目前包含四种模式：
+
+- 单视频分析：拆解某条视频的钩子、结构、文案与复用建议
+- 批量规律分析：总结多条视频的共性特征和内容规律
+- AB 对比分析：比较两组视频的表现差异和优化方向
+- 历史报告：查看已保存的结构化报告，并支持再次打开
+
+## 页面概览
+
+- 仪表盘：查看监控账号数、视频总量、今日新增、近期抓取记录和热门视频
+- 账号管理：添加、删除、抓取 TikTok / 抖音账号
+- 数据视图：查看某个账号下的已采集视频数据
+- AI 分析报告：进入单视频、批量、AB 对比和历史报告模式
+- 设置：配置 Gemini、代理、自动抓取、下载目录等
+
+## 抓取策略
+
+项目内置两类抓取方式：
+
+- `yt-dlp`：默认用于 TikTok，速度快，能直接提取结构化视频信息
+- `Playwright`：用于页面访问、回退抓取，以及抖音页面解析
+
+如果配置了代理，会同时用于 Playwright 和 yt-dlp 抓取流程。
+
+## 数据存储
+
+数据库文件默认位于：
+
+```text
+db/tiktok_monitor.db
+```
+
+当前会存储以下内容：
+
+- `influencers`：监控账号
+- `videos`：视频数据
+- `fetch_logs`：抓取记录
+- `ai_analysis`：单条视频分析结果
+- `ai_reports`：结构化 AI 报告
+- `ab_comparison`：AB 对比结果
+- `hook_library`：钩子素材库
+
+## 项目结构
+
+```text
+tiktok_monitor/
+├── main.py
+├── config.py
+├── requirements.txt
+├── .env.example
+├── core/
+│   ├── scraper.py
+│   ├── scheduler.py
+│   ├── platforms.py
+│   └── ai_analyzer.py
+├── data/
+│   └── database.py
+├── db/
+├── skills/
+├── ui/
+│   ├── components/
+│   ├── dialogs/
+│   └── pages/
+└── docs/
+```
+
+## 相关文档
+
+- [安装与配置指南](docs/SETUP_GUIDE.md)
+- [Gemini 配置说明](docs/GEMINI_SETUP.md)
+- [配置管理说明](docs/CONFIG_GUIDE.md)
+- [配置变更记录](docs/CONFIG_CHANGES.md)
+- [AB 对比迁移说明](AB_COMPARISON_MIGRATION.md)
+
+## 注意事项
+
+- 本项目为本地桌面工具，抓取稳定性会受到网络、代理和平台页面变更影响
+- AI 分析功能依赖有效的 Gemini API Key
+- `.env` 中包含敏感信息，请勿提交到版本库
+- 使用 TikTok / 抖音数据时请遵守对应平台条款与当地法律法规
+
+## 开发与调试
+
+常用命令：
 
 ```bash
-# 复制配置模板
-cp .env.example .env
-
-# 编辑 .env 文件
-# OPENAI_API_KEY=your-actual-api-key-here
+pip install -r requirements.txt
+python -m playwright install chromium
+python main.py
 ```
 
-### 可选配置
-
-| 配置项 | 说明 | 是否必须 |
-|--------|------|----------|
-| `OPENAI_API_KEY` | OpenAI API密钥，用于AI分析功能 | ✅ 必需 |
-| `OPENAI_API_BASE` | API地址（留空使用官方API） | 可选 |
-| `HTTP_PROXY` / `HTTPS_PROXY` | 代理服务器，提高访问稳定性 | 建议配置 |
-| `LOG_LEVEL` | 日志级别（DEBUG/INFO/WARNING/ERROR） | 可选 |
-
-### 应用内设置
-
-启动应用后，进入「设置」页面可配置：
-
-- 🔄 抓取间隔：定时抓取的时间间隔
-- 🌐 代理服务器：提高TikTok访问稳定性
-- 📁 下载路径：视频下载保存目录
-- 🎨 主题设置：自定义界面外观
-
-## 📚 详细文档
-
-- [🔧 配置指南](SETUP_GUIDE.md) - 详细的配置说明和常见问题
-- [📋 配置管理](CONFIG_GUIDE.md) - 配置文件结构和最佳实践
-- [🔄 配置变更](CONFIG_CHANGES.md) - 配置初始化和版本控制说明
-
-## 🏗️ 技术架构
-
-```
-tiktok_monitor/
-├── main.py                 # 主程序入口（PyQt6应用）
-├── config.py               # 统一配置管理
-├── requirements.txt        # Python依赖清单
-├── .env.example            # 环境变量配置模板
-│
-├── db/                     # 数据库目录
-│   └── tiktok_monitor.db   # SQLite数据库文件（自动生成）
-│
-├── core/                   # 核心功能模块
-│   ├── scraper.py          # 数据抓取（yt-dlp + Playwright）
-│   ├── ai_analyzer.py      # AI流量钩子分析
-│   ├── scheduler.py        # 定时任务调度
-│   └── platforms.py        # 多平台支持
-│
-├── data/                   # 数据管理
-│   └── database.py         # SQLite数据库操作
-│
-├── skills/                 # AI技能模块
-│   ├── tiktok_ai_analysis.py   # TikTok AI分析
-│   ├── hook_research.py        # 钩子研究
-│   ├── format_research.py      # 格式研究
-│   ├── content_pipeline.py     # 内容流水线
-│   └── skill_registry.py       # 技能注册表
-│
-└── ui/                     # 用户界面
-    ├── main_window.py          # 主窗口
-    ├── dashboard_page.py       # 仪表盘
-    ├── influencer_page.py      # 博主管理
-    ├── data_view_page.py       # 数据视图
-    ├── ai_report_page.py       # AI分析报告
-    └── settings_page.py        # 设置页面
-```
-
-## 🔍 数据抓取策略
-
-本工具采用双模式数据抓取策略：
-
-1. **yt-dlp模式（默认）**：通过yt-dlp获取结构化数据，速度快、数据完整
-2. **Playwright模式（备选）**：浏览器自动化模拟用户访问，拦截网络请求获取数据
-
-## 🛡️ 配置优先级
-
-系统按以下优先级加载配置（高优先级覆盖低优先级）：
-
-1. `.env` 文件（如果存在）
-2. `config_local.py` 文件（如果存在）
-3. 系统环境变量
-4. `config.py` 中的默认值
-
-## ⚠️ 注意事项
-
-- 本工具仅用于个人学习和内容创作研究，请遵守各平台使用条款
-- 建议配置代理以提高数据抓取的稳定性
-- AI分析功能需要有效的OpenAI API Key
-- `.env` 和 `config_local.py` 包含敏感信息，已添加到 `.gitignore`，请勿提交到版本控制系统
-
-## 🤝 贡献指南
-
-欢迎提交 Issue 和 Pull Request！
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 提交 Pull Request
-
-## 📄 许可证
-
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
-
-## 🙏 致谢
-
-- [OpenAI](https://openai.com/) - 提供AI分析能力
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - 视频下载工具
-- [Playwright](https://playwright.dev/) - 浏览器自动化
-- [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) - 桌面应用框架
-
----
-
-<div align="center">
-  <sub>Built with ❤️ by Manus AI</sub>
-</div>
+如果你在首次运行时遇到浏览器相关报错，通常重新执行一次 `python -m playwright install chromium` 即可。

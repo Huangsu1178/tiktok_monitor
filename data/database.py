@@ -271,6 +271,22 @@ def _ensure_schema(conn):
         """
     )
 
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS ai_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            report_type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            subject_label TEXT,
+            summary TEXT,
+            source_payload TEXT,
+            result_payload TEXT,
+            export_markdown TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+        """
+    )
+
 
 def _migrate_legacy_schema(conn):
     if _table_exists(conn, "influencers") and not _column_exists(conn, "influencers", "platform"):
@@ -732,6 +748,100 @@ def get_ab_comparison(comparison_id: int) -> dict:
         return result
     except Exception as e:
         print(f"[DB] 获取AB对比详情失败: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def save_ai_report(
+    report_type: str,
+    title: str,
+    result_payload: dict,
+    source_payload: dict | None = None,
+    subject_label: str = "",
+    summary: str = "",
+    export_markdown: str = "",
+) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            INSERT INTO ai_reports
+            (report_type, title, subject_label, summary, source_payload, result_payload, export_markdown)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                (report_type or "").strip(),
+                (title or "").strip() or "AI 分析报告",
+                subject_label or "",
+                summary or "",
+                json.dumps(source_payload or {}, ensure_ascii=False),
+                json.dumps(result_payload or {}, ensure_ascii=False),
+                export_markdown or "",
+            ),
+        )
+        conn.commit()
+        return cursor.lastrowid
+    except Exception as exc:
+        print(f"[DB] 保存 AI 报告失败: {exc}")
+        return 0
+    finally:
+        conn.close()
+
+
+def get_ai_reports(limit: int = 50, report_type: str = "") -> list:
+    conn = get_connection()
+    try:
+        if report_type:
+            rows = conn.execute(
+                """
+                SELECT id, report_type, title, subject_label, summary, created_at
+                FROM ai_reports
+                WHERE report_type=?
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+                """,
+                (report_type, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT id, report_type, title, subject_label, summary, created_at
+                FROM ai_reports
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception as exc:
+        print(f"[DB] 获取 AI 报告列表失败: {exc}")
+        return []
+    finally:
+        conn.close()
+
+
+def get_ai_report(report_id: int) -> dict:
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT * FROM ai_reports WHERE id=?", (report_id,)).fetchone()
+        if not row:
+            return None
+
+        result = dict(row)
+        for key in ("source_payload", "result_payload"):
+            raw = result.get(key)
+            if raw:
+                try:
+                    result[key] = json.loads(raw)
+                except json.JSONDecodeError:
+                    result[key] = {}
+            else:
+                result[key] = {}
+        return result
+    except Exception as exc:
+        print(f"[DB] 获取 AI 报告详情失败: {exc}")
         return None
     finally:
         conn.close()
