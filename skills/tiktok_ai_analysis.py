@@ -5,6 +5,7 @@ TikTok Monitor - TikTok AI Analysis Skill
 import json
 import time
 from datetime import datetime
+from statistics import median
 from typing import Any, Dict, List, Optional
 
 from config import AI_CONFIG
@@ -445,32 +446,12 @@ class TikTokAIAnalysisSkill(AIClientMixin):
             print("[AI Analysis] ⚠️ AI服务不可用，使用模拟AB对比分析")
             return self._mock_ab_comparison(group_a_videos, group_b_videos, group_a_label, group_b_label)
 
-        print(f"[AI Analysis] 准备AB对比分析数据...")
-        # 准备A组视频摘要
-        group_a_data = "\n".join(
-            [
-                (
-                    f"{i}. 描述：{v.get('description', v.get('title', ''))[:80]} | "
-                    f"播放：{v.get('play_count', 0):,} | 点赞：{v.get('like_count', 0):,} | "
-                    f"标签：{v.get('hashtags', '')} | BGM：{v.get('music_name', '')}"
-                )
-                for i, v in enumerate(group_a_videos[:10], 1)
-            ]
-        )
+        print("[AI Analysis] 准备AB对比分析数据...")
+        group_a_snapshot = self._build_ab_group_snapshot(group_a_videos)
+        group_b_snapshot = self._build_ab_group_snapshot(group_b_videos)
+        group_a_data = self._build_ab_group_input(group_a_videos, group_a_label, group_a_snapshot)
+        group_b_data = self._build_ab_group_input(group_b_videos, group_b_label, group_b_snapshot)
 
-        # 准备B组视频摘要
-        group_b_data = "\n".join(
-            [
-                (
-                    f"{i}. 描述：{v.get('description', v.get('title', ''))[:80]} | "
-                    f"播放：{v.get('play_count', 0):,} | 点赞：{v.get('like_count', 0):,} | "
-                    f"标签：{v.get('hashtags', '')} | BGM：{v.get('music_name', '')}"
-                )
-                for i, v in enumerate(group_b_videos[:10], 1)
-            ]
-        )
-
-        # 构建prompt
         prompt = AB_COMPARISON_PROMPT.format(
             group_a_label=group_a_label,
             group_b_label=group_b_label,
@@ -479,7 +460,7 @@ class TikTokAIAnalysisSkill(AIClientMixin):
         )
 
         messages = [
-            {"role": "system", "content": "你是专业的TikTok内容AB测试分析师，请用中文回答。"},
+            {"role": "system", "content": "你是专业的TikTok内容诊断分析师，请用中文回答。"},
             {"role": "user", "content": prompt},
         ]
 
@@ -504,30 +485,13 @@ class TikTokAIAnalysisSkill(AIClientMixin):
             print("[AI Analysis] ⚠️ AB对比分析JSON解析失败，使用模拟分析")
             return self._mock_ab_comparison(group_a_videos, group_b_videos, group_a_label, group_b_label)
 
-        # 兼容字段映射，确保 UI 能正确读取
-        if "group_a_summary" in result and "group_a_overview" not in result:
-            result["group_a_overview"] = {
-                "avg_plays": result["group_a_summary"].get("avg_play_count", 0),
-                "avg_engagement_rate": result["group_a_summary"].get("avg_engagement_rate", 0),
-                "hook_type": result["group_a_summary"].get("dominant_hook_type", ""),
-                "content_pattern": result["group_a_summary"].get("content_pattern", ""),
-                "strengths": result["group_a_summary"].get("strengths", []),
-            }
-        if "group_b_summary" in result and "group_b_overview" not in result:
-            result["group_b_overview"] = {
-                "avg_plays": result["group_b_summary"].get("avg_play_count", 0),
-                "avg_engagement_rate": result["group_b_summary"].get("avg_engagement_rate", 0),
-                "hook_type": result["group_b_summary"].get("dominant_hook_type", ""),
-                "content_pattern": result["group_b_summary"].get("content_pattern", ""),
-                "strengths": result["group_b_summary"].get("strengths", []),
-            }
-        if "dimension_comparison" in result and "dimension_comparisons" not in result:
-            result["dimension_comparisons"] = result["dimension_comparison"]
-        if "start_framework_comparison" in result and "start_comparison" not in result:
-            result["start_comparison"] = result["start_framework_comparison"]
-        if "actionable_script" in result and "script_template" not in result:
-            result["script_template"] = result["actionable_script"]
-
+        result = self._normalize_ab_comparison_result(
+            result,
+            group_a_videos,
+            group_b_videos,
+            group_a_label,
+            group_b_label,
+        )
         result["raw_response"] = raw_response
         end_timestamp = datetime.now().strftime("%H:%M:%S")
         elapsed = time.time() - start_time
@@ -535,248 +499,547 @@ class TikTokAIAnalysisSkill(AIClientMixin):
         print(f"[AI Analysis] ✅ AB对比分析完成")
         return result
 
-    def _mock_ab_comparison(self, group_a_videos, group_b_videos, group_a_label, group_b_label):
-        """API不可用时的模拟AB对比分析"""
-        # 计算A组统计数据
-        a_plays = [v.get("play_count", 0) for v in group_a_videos]
-        a_avg_plays = sum(a_plays) / len(a_plays) if a_plays else 0
-        a_engagement_rates = [self.calculate_engagement_metrics(v)["engagement_rate"] for v in group_a_videos]
-        a_avg_engagement = sum(a_engagement_rates) / len(a_engagement_rates) if a_engagement_rates else 0
+    def _build_ab_group_snapshot(self, videos: list) -> Dict[str, Any]:
+        play_counts = [int(v.get("play_count", 0) or 0) for v in videos]
+        engagement_rates = [
+            float(self.calculate_engagement_metrics(v).get("engagement_rate", 0) or 0)
+            for v in videos
+        ]
 
-        # 计算B组统计数据
-        b_plays = [v.get("play_count", 0) for v in group_b_videos]
-        b_avg_plays = sum(b_plays) / len(b_plays) if b_plays else 0
-        b_engagement_rates = [self.calculate_engagement_metrics(v)["engagement_rate"] for v in group_b_videos]
-        b_avg_engagement = sum(b_engagement_rates) / len(b_engagement_rates) if b_engagement_rates else 0
-
-        # 判定胜出方
-        winner = "A" if a_avg_plays >= b_avg_plays else "B"
-        winner_label = group_a_label if winner == "A" else group_b_label
-        winner_reason = f"{winner_label}的平均播放量更高，整体内容策略更有效"
+        avg_play_count = sum(play_counts) / len(play_counts) if play_counts else 0
+        median_play_count = median(play_counts) if play_counts else 0
+        max_play_count = max(play_counts) if play_counts else 0
+        avg_engagement_rate = sum(engagement_rates) / len(engagement_rates) if engagement_rates else 0
 
         return {
+            "sample_count": len(videos),
+            "avg_play_count": avg_play_count,
+            "median_play_count": median_play_count,
+            "max_play_count": max_play_count,
+            "avg_engagement_rate": avg_engagement_rate,
+        }
+
+    def _build_ab_group_input(self, videos: list, label: str, snapshot: Dict[str, Any]) -> str:
+        summary_lines = [
+            f"- 组别: {label}",
+            f"- 样本数: {snapshot['sample_count']}",
+            f"- 平均播放量: {snapshot['avg_play_count']:.0f}",
+            f"- 中位播放量: {snapshot['median_play_count']:.0f}",
+            f"- 最高播放量: {snapshot['max_play_count']:.0f}",
+            f"- 平均互动率: {snapshot['avg_engagement_rate']:.2f}%",
+            "- 样本视频:",
+        ]
+
+        sample_lines = []
+        for idx, video in enumerate(videos[:10], 1):
+            description = video.get("description", video.get("title", ""))[:80] or "无描述"
+            hashtags = video.get("hashtags", "") or "无标签"
+            music_name = video.get("music_name", "") or "未知"
+            sample_lines.append(
+                f"{idx}. 描述：{description} | 播放：{int(video.get('play_count', 0) or 0):,} | "
+                f"点赞：{int(video.get('like_count', 0) or 0):,} | 标签：{hashtags} | BGM：{music_name}"
+            )
+
+        if not sample_lines:
+            sample_lines.append("1. 暂无样本视频")
+
+        return "\n".join(summary_lines + sample_lines)
+
+    def _normalize_ab_comparison_result(
+        self,
+        result: dict,
+        group_a_videos: list,
+        group_b_videos: list,
+        group_a_label: str,
+        group_b_label: str,
+    ) -> dict:
+        normalized = dict(result or {})
+        group_a_snapshot = self._build_ab_group_snapshot(group_a_videos)
+        group_b_snapshot = self._build_ab_group_snapshot(group_b_videos)
+
+        if "dimension_comparison" in normalized and "dimension_comparisons" not in normalized:
+            normalized["dimension_comparisons"] = normalized["dimension_comparison"]
+        if "start_framework_comparison" in normalized and "start_comparison" not in normalized:
+            normalized["start_comparison"] = normalized["start_framework_comparison"]
+        if "actionable_script" in normalized and "script_template" not in normalized:
+            normalized["script_template"] = normalized["actionable_script"]
+
+        group_a_summary = dict(normalized.get("group_a_summary") or {})
+        group_b_summary = dict(normalized.get("group_b_summary") or {})
+        group_a_summary.setdefault("sample_count", group_a_snapshot["sample_count"])
+        group_b_summary.setdefault("sample_count", group_b_snapshot["sample_count"])
+        group_a_summary.setdefault("avg_play_count", f"{group_a_snapshot['avg_play_count']:.0f}")
+        group_b_summary.setdefault("avg_play_count", f"{group_b_snapshot['avg_play_count']:.0f}")
+        group_a_summary.setdefault("avg_engagement_rate", f"{group_a_snapshot['avg_engagement_rate']:.2f}%")
+        group_b_summary.setdefault("avg_engagement_rate", f"{group_b_snapshot['avg_engagement_rate']:.2f}%")
+        group_a_summary.setdefault("strengths", [])
+        group_b_summary.setdefault("strengths", [])
+        group_a_summary.setdefault("weaknesses", [])
+        group_b_summary.setdefault("weaknesses", [])
+        normalized["group_a_summary"] = group_a_summary
+        normalized["group_b_summary"] = group_b_summary
+
+        winner = normalized.get("winner", "")
+        if winner not in {"A", "B"}:
+            if group_a_snapshot["avg_play_count"] > group_b_snapshot["avg_play_count"]:
+                winner = "A"
+            elif group_b_snapshot["avg_play_count"] > group_a_snapshot["avg_play_count"]:
+                winner = "B"
+            else:
+                winner = ""
+        normalized["winner"] = winner
+
+        gap_summary = dict(normalized.get("performance_gap_summary") or {})
+        if not gap_summary:
+            gap_summary = self._build_default_gap_summary(
+                winner,
+                normalized.get("dimension_comparisons", []),
+                group_a_snapshot,
+                group_b_snapshot,
+                group_a_label,
+                group_b_label,
+            )
+        normalized["performance_gap_summary"] = gap_summary
+
+        if not normalized.get("winner_reason"):
+            normalized["winner_reason"] = gap_summary.get("core_gap", "")
+
+        normalized["diagnosis_summary"] = self._build_default_diagnosis_summary(
+            normalized.get("diagnosis_summary", {}),
+            gap_summary,
+            normalized.get("root_causes", []),
+            normalized.get("optimization_suggestions", []),
+        )
+
+        normalized["group_a_overview"] = self._normalize_ab_overview(
+            normalized.get("group_a_overview"),
+            group_a_summary,
+            group_a_snapshot,
+        )
+        normalized["group_b_overview"] = self._normalize_ab_overview(
+            normalized.get("group_b_overview"),
+            group_b_summary,
+            group_b_snapshot,
+        )
+        normalized["key_differences"] = self._normalize_key_differences(
+            normalized.get("key_differences", []),
+            normalized.get("dimension_comparisons", []),
+        )
+        normalized["root_causes"] = self._normalize_root_causes(normalized.get("root_causes", []))
+        normalized["optimization_suggestions"] = self._normalize_optimization_suggestions(
+            normalized.get("optimization_suggestions", [])
+        )
+
+        return normalized
+
+    def _build_default_gap_summary(
+        self,
+        winner: str,
+        dimension_comparisons: list,
+        group_a_snapshot: Dict[str, Any],
+        group_b_snapshot: Dict[str, Any],
+        group_a_label: str,
+        group_b_label: str,
+    ) -> dict:
+        if winner == "A":
+            leading_group = "A"
+            leading_label = group_a_label
+            trailing_label = group_b_label
+            lead_plays = group_a_snapshot["avg_play_count"]
+            trail_plays = group_b_snapshot["avg_play_count"]
+        elif winner == "B":
+            leading_group = "B"
+            leading_label = group_b_label
+            trailing_label = group_a_label
+            lead_plays = group_b_snapshot["avg_play_count"]
+            trail_plays = group_a_snapshot["avg_play_count"]
+        else:
+            leading_group = "平衡"
+            leading_label = group_a_label
+            trailing_label = group_b_label
+            lead_plays = group_a_snapshot["avg_play_count"]
+            trail_plays = group_b_snapshot["avg_play_count"]
+
+        major_dimensions = []
+        for item in dimension_comparisons or []:
+            verdict = item.get("verdict", "")
+            if winner == "A" and verdict == "A优":
+                major_dimensions.append(item.get("dimension", ""))
+            elif winner == "B" and verdict == "B优":
+                major_dimensions.append(item.get("dimension", ""))
+
+        if winner and trail_plays > 0:
+            play_ratio = lead_plays / trail_plays
+            core_gap = (
+                f"{leading_label} 当前整体流量更强，平均播放量约为 {trailing_label} 的 {play_ratio:.1f} 倍，"
+                f"差距主要集中在 {('、'.join(major_dimensions[:2]) or '开场吸引与内容结构')}。"
+            )
+        elif winner:
+            core_gap = f"{leading_label} 当前整体流量更强，差距主要集中在 {('、'.join(major_dimensions[:2]) or '开场吸引与内容结构')}。"
+        else:
+            core_gap = "两组整体流量接近，但优势分布在不同维度，建议按具体指标拆开看。"
+
+        if winner == "A":
+            recommended_direction = f"优先拆解并迁移 {group_a_label} 中被验证过的高效做法，同时保留 {group_b_label} 的差异化优势。"
+        elif winner == "B":
+            recommended_direction = f"优先拆解并迁移 {group_b_label} 中被验证过的高效做法，同时保留 {group_a_label} 的差异化优势。"
+        else:
+            recommended_direction = "不要强行照搬整组内容，而是按维度提炼更能提升流量的做法。"
+
+        return {
+            "leading_group": leading_group,
+            "core_gap": core_gap,
+            "metric_focus": "平均播放量、完播率相关信号、互动转化",
+            "recommended_direction": recommended_direction,
+        }
+
+    def _build_default_diagnosis_summary(
+        self,
+        diagnosis_summary: dict,
+        gap_summary: dict,
+        root_causes: list,
+        optimization_suggestions: list,
+    ) -> dict:
+        diagnosis = dict(diagnosis_summary or {})
+
+        if not diagnosis.get("what"):
+            diagnosis["what"] = gap_summary.get("core_gap", "两组在核心内容策略上存在可解释的表现差异。")
+
+        if not diagnosis.get("why"):
+            first_cause = ""
+            for item in root_causes or []:
+                if isinstance(item, dict):
+                    first_cause = item.get("reason") or item.get("mechanism") or item.get("title") or ""
+                elif item:
+                    first_cause = str(item)
+                if first_cause:
+                    break
+            diagnosis["why"] = first_cause or "差异主要来自开场吸引、内容节奏和互动设计对分发与停留的共同作用。"
+
+        if not diagnosis.get("how"):
+            first_action = ""
+            for item in optimization_suggestions or []:
+                if isinstance(item, dict):
+                    first_action = item.get("suggestion") or ""
+                elif item:
+                    first_action = str(item)
+                if first_action:
+                    break
+            diagnosis["how"] = first_action or gap_summary.get("recommended_direction", "优先迁移高表现组中最稳定有效的内容动作。")
+
+        return diagnosis
+
+    def _normalize_ab_overview(self, overview: Optional[dict], summary: dict, snapshot: Dict[str, Any]) -> dict:
+        normalized = dict(overview or {})
+        normalized.setdefault("sample_count", summary.get("sample_count", snapshot["sample_count"]))
+        normalized.setdefault("avg_plays", summary.get("avg_play_count", f"{snapshot['avg_play_count']:.0f}"))
+        normalized.setdefault("avg_engagement_rate", summary.get("avg_engagement_rate", f"{snapshot['avg_engagement_rate']:.2f}%"))
+        normalized.setdefault("median_plays", f"{snapshot['median_play_count']:.0f}")
+        normalized.setdefault("top_play_count", f"{snapshot['max_play_count']:.0f}")
+        normalized.setdefault("hook_type", summary.get("dominant_hook_type", ""))
+        normalized.setdefault("content_pattern", summary.get("content_pattern", ""))
+        normalized.setdefault("strengths", summary.get("strengths", []))
+        normalized.setdefault("weaknesses", summary.get("weaknesses", []))
+        return normalized
+
+    def _normalize_key_differences(self, key_differences: list, dimension_comparisons: list) -> list:
+        normalized = []
+        for item in key_differences or []:
+            if isinstance(item, dict):
+                normalized.append({
+                    "dimension": item.get("dimension", ""),
+                    "difference": item.get("difference", "") or item.get("summary", ""),
+                    "impact": item.get("impact", ""),
+                })
+            elif item:
+                normalized.append({
+                    "dimension": "关键差异",
+                    "difference": str(item),
+                    "impact": "",
+                })
+
+        if normalized:
+            return normalized
+
+        for item in (dimension_comparisons or [])[:4]:
+            normalized.append({
+                "dimension": item.get("dimension", ""),
+                "difference": item.get("gap_analysis", ""),
+                "impact": f"当前判定：{item.get('verdict', '待判断')}",
+            })
+        return normalized
+
+    def _normalize_root_causes(self, root_causes: list) -> list:
+        normalized = []
+        for idx, item in enumerate(root_causes or [], 1):
+            if isinstance(item, dict):
+                normalized.append({
+                    "title": item.get("title", f"原因 {idx}"),
+                    "reason": item.get("reason", item.get("title", "")),
+                    "mechanism": item.get("mechanism", item.get("impact", "")),
+                })
+            elif item:
+                normalized.append({
+                    "title": f"原因 {idx}",
+                    "reason": str(item),
+                    "mechanism": "",
+                })
+        return normalized
+
+    def _normalize_optimization_suggestions(self, suggestions: list) -> list:
+        normalized = []
+        for item in suggestions or []:
+            if isinstance(item, dict):
+                normalized.append({
+                    "priority": item.get("priority", "中"),
+                    "target_group": item.get("target_group", "两组"),
+                    "suggestion": item.get("suggestion", ""),
+                    "why_this_matters": item.get("why_this_matters", ""),
+                    "expected_impact": item.get("expected_impact", ""),
+                    "how_to_execute": item.get("how_to_execute", ""),
+                })
+            elif item:
+                normalized.append({
+                    "priority": "中",
+                    "target_group": "两组",
+                    "suggestion": str(item),
+                    "why_this_matters": "",
+                    "expected_impact": "",
+                    "how_to_execute": "",
+                })
+        return normalized
+
+    def _mock_ab_comparison(self, group_a_videos, group_b_videos, group_a_label, group_b_label):
+        """API不可用时的模拟AB对比分析"""
+        a_snapshot = self._build_ab_group_snapshot(group_a_videos)
+        b_snapshot = self._build_ab_group_snapshot(group_b_videos)
+
+        if a_snapshot["avg_play_count"] > b_snapshot["avg_play_count"]:
+            winner = "A"
+            winner_label = group_a_label
+            chasing_group = "B组"
+        elif b_snapshot["avg_play_count"] > a_snapshot["avg_play_count"]:
+            winner = "B"
+            winner_label = group_b_label
+            chasing_group = "A组"
+        else:
+            winner = ""
+            winner_label = "两组"
+            chasing_group = "两组"
+
+        diagnosis_what = (
+            f"{winner_label}在整体流量上更占优，差距主要出现在开场截停、内容结构和互动设计。"
+            if winner
+            else "两组整体流量接近，但高低表现的差异主要体现在开场截停、内容结构和互动设计的取舍上。"
+        )
+        performance_core_gap = (
+            f"{winner_label}当前更容易拿到分发，说明其内容设计更符合平台对停留、完播和互动的综合判断。"
+            if winner
+            else "两组不是简单的胜负关系，而是分别在不同流量指标上有强弱，适合按维度迁移做法。"
+        )
+
+        base_result = {
+            "diagnosis_summary": {
+                "what": diagnosis_what,
+                "why": "更高流量的一组通常在更短时间内完成价值预告，并且更早把用户带入互动或结果预期。",
+                "how": "先迁移高表现组最稳定的开场与结构动作，再做文案和互动层面的微调。",
+            },
+            "performance_gap_summary": {
+                "leading_group": winner or "平衡",
+                "core_gap": performance_core_gap,
+                "metric_focus": "重点看平均播放量、前3秒截停、完播率和评论触发能力。",
+                "recommended_direction": "不要把AB对比当成单条视频胜负，而是把高表现组当成策略样本库来拆动作。",
+            },
             "group_a_summary": {
-                "avg_play_count": f"{int(a_avg_plays):,}",
-                "avg_engagement_rate": f"{a_avg_engagement:.2f}%",
+                "sample_count": a_snapshot["sample_count"],
+                "avg_play_count": f"{a_snapshot['avg_play_count']:.0f}",
+                "avg_engagement_rate": f"{a_snapshot['avg_engagement_rate']:.2f}%",
                 "dominant_hook_type": "信息价值型",
-                "content_pattern": "结果前置型内容结构，快速抓住用户注意力",
+                "content_pattern": "结果前置型内容结构，快速给出利益点或答案预告。",
                 "strengths": [
-                    "开场钩子设计较为直接，能快速吸引目标受众",
-                    "内容节奏紧凑，信息密度适中",
-                    "BGM选择贴合内容主题，增强观看体验"
-                ]
+                    "开场更直接，用户更快知道这条视频值不值得停留。",
+                    "信息交付节奏更紧凑，减少了前段铺垫浪费。",
+                    "CTA更明确，容易把观看转成点赞或评论。",
+                ],
+                "weaknesses": [
+                    "情绪张力不足时，可能显得过于直给。",
+                    "视觉记忆点如果不够，会让内容辨识度偏弱。",
+                ],
             },
             "group_b_summary": {
-                "avg_play_count": f"{int(b_avg_plays):,}",
-                "avg_engagement_rate": f"{b_avg_engagement:.2f}%",
+                "sample_count": b_snapshot["sample_count"],
+                "avg_play_count": f"{b_snapshot['avg_play_count']:.0f}",
+                "avg_engagement_rate": f"{b_snapshot['avg_engagement_rate']:.2f}%",
                 "dominant_hook_type": "情感共鸣型",
-                "content_pattern": "故事叙述型内容结构，注重情感连接",
+                "content_pattern": "故事递进型内容结构，更强调情绪铺垫和关系建立。",
                 "strengths": [
-                    "情感共鸣点把握较好，用户停留时间较长",
-                    "视觉呈现风格统一，品牌识别度高",
-                    "互动引导设计自然，评论转化率较高"
-                ]
+                    "情绪连接更自然，容易让用户愿意继续看下去。",
+                    "画面和调性更统一，品牌感更强。",
+                    "评论互动更有参与感，适合沉淀深层用户反馈。",
+                ],
+                "weaknesses": [
+                    "进入主题偏慢时，会损失前3秒截停能力。",
+                    "价值点后置过深时，容易影响推荐扩散。",
+                ],
             },
-            "winner": winner,
-            "winner_reason": winner_reason,
-            "dimension_comparison": [
+            "key_differences": [
                 {
-                    "dimension": "钩子策略",
-                    "group_a_performance": "采用结果前置型钩子，开场直接展示核心内容",
-                    "group_b_performance": "采用悬念型钩子，通过提问或冲突吸引注意",
-                    "gap_analysis": "A组开场更直接，B组更有悬念感，各有优势",
-                    "verdict": "持平"
+                    "dimension": "开场截停",
+                    "difference": "高表现组更早把结果、利益点或冲突抛出来，低表现组进入主题更慢。",
+                    "impact": "直接影响3秒停留和首轮分发。",
                 },
                 {
                     "dimension": "内容结构",
-                    "group_a_performance": "信息密度高，节奏紧凑，适合快速消费",
-                    "group_b_performance": "叙事节奏舒缓，注重情感铺垫和递进",
-                    "gap_analysis": "A组适合碎片化阅读，B组适合深度观看",
-                    "verdict": "A优" if a_avg_plays >= b_avg_plays else "B优"
+                    "difference": "高表现组更快进入价值交付，低表现组铺垫更长。",
+                    "impact": "会拉开完播率和中段流失率。",
+                },
+                {
+                    "dimension": "互动设计",
+                    "difference": "高表现组会在情绪或价值节点主动引导互动，低表现组更多依赖自然发生。",
+                    "impact": "影响评论量、二次分发和粉丝沉淀。",
+                },
+            ],
+            "winner": winner,
+            "winner_reason": f"{winner_label}的内容更容易在短时间内完成截停、价值预告和互动触发，所以整体流量更高。" if winner else "两组在不同维度各有优势，建议拆维度迁移而不是简单判胜负。",
+            "dimension_comparison": [
+                {
+                    "dimension": "钩子策略",
+                    "group_a_performance": "更偏结果前置和直接利益表达。",
+                    "group_b_performance": "更偏悬念或情绪引入。",
+                    "gap_analysis": "高流量并不只来自更强刺激，而是来自更快让用户知道“为什么要继续看”。",
+                    "verdict": "A优" if winner == "A" else ("B优" if winner == "B" else "持平"),
+                },
+                {
+                    "dimension": "内容结构",
+                    "group_a_performance": "段落更短，价值交付更靠前。",
+                    "group_b_performance": "铺垫更多，情绪递进更明显。",
+                    "gap_analysis": "如果目标是拿更高播放，通常更短的铺垫会更有利于进入下一层分发。",
+                    "verdict": "A优" if winner == "A" else ("B优" if winner == "B" else "持平"),
                 },
                 {
                     "dimension": "视觉风格",
-                    "group_a_performance": "画面简洁明了，重点突出，剪辑节奏快",
-                    "group_b_performance": "画面质感较好，色调统一，视觉记忆点强",
-                    "gap_analysis": "A组信息传达效率高，B组品牌调性更突出",
-                    "verdict": "持平"
+                    "group_a_performance": "信息传达效率更高。",
+                    "group_b_performance": "整体质感和记忆点更强。",
+                    "gap_analysis": "一个偏效率，一个偏辨识度，适合结合使用。",
+                    "verdict": "持平",
                 },
                 {
                     "dimension": "文案策略",
-                    "group_a_performance": "标题直接明了，使用数字和结果导向词汇",
-                    "group_b_performance": "标题富有情感，善于使用疑问句和共鸣词",
-                    "gap_analysis": "A组点击转化率高，B组用户情感连接更深",
-                    "verdict": "持平"
+                    "group_a_performance": "标题更结果导向，适合抢点击。",
+                    "group_b_performance": "标题更情绪导向，适合建立共鸣。",
+                    "gap_analysis": "高点击不一定等于高完播，关键在标题承诺与内容兑现是否匹配。",
+                    "verdict": "持平",
                 },
                 {
                     "dimension": "BGM策略",
-                    "group_a_performance": "选择节奏明快的流行音乐，与内容节奏匹配",
-                    "group_b_performance": "选择情感氛围音乐，强化内容情绪表达",
-                    "gap_analysis": "两组BGM策略差异明显，适应不同内容风格",
-                    "verdict": "持平"
+                    "group_a_performance": "更强调节奏感和推进效率。",
+                    "group_b_performance": "更强调氛围和情绪放大。",
+                    "gap_analysis": "BGM本身不是决定性因素，但会放大结构与情绪的差异。",
+                    "verdict": "持平",
                 },
                 {
                     "dimension": "互动引导",
-                    "group_a_performance": "CTA设计直接，明确引导点赞和关注",
-                    "group_b_performance": "通过情感共鸣自然引导用户评论互动",
-                    "gap_analysis": "A组转化路径清晰，B组用户参与感更强",
-                    "verdict": "B优"
-                }
+                    "group_a_performance": "在价值点后主动引导互动。",
+                    "group_b_performance": "更多依赖共鸣带来的自然互动。",
+                    "gap_analysis": "主动设计互动节点，更容易放大评论和二次传播。",
+                    "verdict": "A优" if winner == "A" else ("B优" if winner == "B" else "持平"),
+                },
             ],
             "root_causes": [
-                "内容定位差异导致受众群体不同，影响整体播放量表现",
-                "开场策略的差异直接影响3秒完播率和推荐算法分发",
-                "互动引导方式不同导致用户参与深度和转化效果存在差异"
+                {
+                    "title": "开场价值预告速度不同",
+                    "reason": "高表现组更早告诉用户这条内容能带来什么，低表现组前段信息密度不足。",
+                    "mechanism": "这会直接影响前3秒停留、继续观看意愿和推荐系统的首轮判断。",
+                },
+                {
+                    "title": "价值交付位置不同",
+                    "reason": "高表现组把核心信息放在更靠前的位置，低表现组存在铺垫过长的问题。",
+                    "mechanism": "价值交付越晚，用户越容易中途滑走，进而拖低完播率。",
+                },
+                {
+                    "title": "互动触发设计不同",
+                    "reason": "高表现组更会在用户最容易产生反应的节点推动评论、点赞或收藏。",
+                    "mechanism": "更高的互动密度会放大后续分发，帮助视频获得更长尾的流量。",
+                },
             ],
             "optimization_suggestions": [
                 {
                     "priority": "高",
-                    "suggestion": "融合A组的结果前置开场和B组的情感共鸣设计，打造既有冲击力又有温度的开场",
-                    "expected_impact": "提升3秒完播率和用户情感连接，预计播放量提升20-30%"
+                    "target_group": chasing_group,
+                    "suggestion": "把第一句改成结果前置、痛点前置或冲突前置，让用户在3秒内知道这条内容的核心价值。",
+                    "why_this_matters": "这是拉高截停率和首轮分发最直接的动作。",
+                    "expected_impact": "有机会显著提升播放量和前段停留表现。",
+                    "how_to_execute": "每条脚本先写一句“用户为什么要停下来看”的表达，再补叙事和背景。",
                 },
                 {
                     "priority": "高",
-                    "suggestion": "优化内容节奏，在信息密度和情感铺垫之间找到平衡点",
-                    "expected_impact": "提升完播率和用户满意度，增强内容传播力"
+                    "target_group": chasing_group,
+                    "suggestion": "把核心信息或答案前移，减少铺垫段落的长度。",
+                    "why_this_matters": "更早交付价值，能降低中段流失。",
+                    "expected_impact": "有助于提升完播率和整体推荐层级。",
+                    "how_to_execute": "把原本第2段或第3段的价值点，压缩后挪到开头15秒内。",
                 },
                 {
                     "priority": "中",
-                    "suggestion": "统一视觉风格的同时保留内容多样性，建立品牌识别度",
-                    "expected_impact": "增强用户记忆点，提高粉丝粘性和复访率"
+                    "target_group": "两组",
+                    "suggestion": "保留高表现组的结构效率，同时借用另一组更强的情绪连接方式。",
+                    "why_this_matters": "效率和共鸣并不冲突，结合后更容易兼顾播放和互动。",
+                    "expected_impact": "提升整体内容稳定性，减少只靠单一套路吃流量的波动。",
+                    "how_to_execute": "开场用结果抓停留，中段补一个真实场景或情绪句，结尾再做互动引导。",
                 },
                 {
                     "priority": "中",
-                    "suggestion": "文案采用A/B测试策略，针对不同内容类型使用不同的标题风格",
-                    "expected_impact": "提升整体点击率，找到最优文案策略"
+                    "target_group": "两组",
+                    "suggestion": "为不同选题建立开场模板库，而不是每条视频都从零开始写。",
+                    "why_this_matters": "固定高表现动作，能提高稳定复现率。",
+                    "expected_impact": "减少脚本波动，提高团队复用效率。",
+                    "how_to_execute": "按“痛点型、结果型、反常识型、故事型”各沉淀3套开场。",
                 },
                 {
                     "priority": "低",
-                    "suggestion": "建立BGM素材库，根据内容情绪标签匹配合适的背景音乐",
-                    "expected_impact": "提升内容制作效率，保证BGM与内容的契合度"
-                }
+                    "target_group": "两组",
+                    "suggestion": "把BGM和字幕节奏作为放大器使用，而不是把它当成核心解法。",
+                    "why_this_matters": "真正决定流量的通常是前3秒价值预告和结构设计。",
+                    "expected_impact": "避免把精力花在边际收益更低的细节上。",
+                    "how_to_execute": "先锁定脚本结构，再根据节奏选择BGM和字幕切换点。",
+                },
             ],
             "start_framework_comparison": {
                 "stop": {
-                    "group_a": "直接抛出结果或核心观点，快速截停用户滑动",
-                    "group_b": "通过情感共鸣点或悬念问题吸引用户停留",
-                    "verdict": "持平"
+                    "group_a": "更快展示利益点或结论。",
+                    "group_b": "更偏情绪带入或悬念引入。",
+                    "verdict": "A优" if winner == "A" else ("B优" if winner == "B" else "持平"),
                 },
                 "tension": {
-                    "group_a": "用信息密度和节奏感维持用户注意力",
-                    "group_b": "通过情感递进和故事发展制造期待感",
-                    "verdict": "B优"
+                    "group_a": "依靠结果兑现推动观看。",
+                    "group_b": "依靠情绪递进和故事张力推动观看。",
+                    "verdict": "持平",
                 },
                 "authority": {
-                    "group_a": "通过专业知识和数据展示建立信任",
-                    "group_b": "通过真实经历和情感真诚获得认同",
-                    "verdict": "持平"
+                    "group_a": "偏专业信息背书。",
+                    "group_b": "偏真实经历和共鸣背书。",
+                    "verdict": "持平",
                 },
                 "reveal": {
-                    "group_a": "分步骤清晰交付核心价值，逻辑性强",
-                    "group_b": "通过故事高潮自然呈现价值，感染力强",
-                    "verdict": "持平"
+                    "group_a": "价值交付更靠前。",
+                    "group_b": "价值交付更依赖情绪铺垫。",
+                    "verdict": "A优" if winner == "A" else ("B优" if winner == "B" else "持平"),
                 },
                 "transfer": {
-                    "group_a": "明确给出行动指令，转化路径清晰",
-                    "group_b": "情感高点自然引导互动，用户参与感强",
-                    "verdict": "B优"
-                }
+                    "group_a": "行动指令更明确。",
+                    "group_b": "互动更自然但不够可控。",
+                    "verdict": "A优" if winner == "A" else ("B优" if winner == "B" else "持平"),
+                },
             },
-            "actionable_script": "S (钩子): [结合A组的结果前置优势，直接展示核心利益点或反常识观点，同时融入B组的情感共鸣元素，让用户感到'这与我有关']\\nT (悬念): [采用B组的悬念制造技巧，暗示即将揭晓的答案或解决方案，但先铺垫情感背景或痛点场景]\\nA (信任): [融合A组的专业背书和B组的真实经历，一句话交代你的专业资质和亲身实践]\\nR (交付): [按照A组的清晰逻辑分3步交付价值，同时借鉴B组的情感表达方式，让信息传递更有温度]\\nT (引导): [结合A组的明确CTA和B组的情感引导，在情绪高点给出行动号召，如'如果你也有这样的困扰，双击屏幕让我知道'或'评论区分享你的经历']",
-            "raw_response": "[mock ab comparison analysis]",
-            # UI 期望的字段映射
-            "group_a_overview": {
-                "avg_plays": f"{int(a_avg_plays):,}",
-                "avg_engagement_rate": f"{a_avg_engagement:.2f}%",
-                "hook_type": "信息价值型",
-                "content_pattern": "结果前置型内容结构，快速抓住用户注意力",
-                "strengths": [
-                    "开场钩子设计较为直接，能快速吸引目标受众",
-                    "内容节奏紧凑，信息密度适中",
-                    "BGM选择贴合内容主题，增强观看体验"
-                ]
-            },
-            "group_b_overview": {
-                "avg_plays": f"{int(b_avg_plays):,}",
-                "avg_engagement_rate": f"{b_avg_engagement:.2f}%",
-                "hook_type": "情感共鸣型",
-                "content_pattern": "故事叙述型内容结构，注重情感连接",
-                "strengths": [
-                    "情感共鸣点把握较好，用户停留时间较长",
-                    "视觉呈现风格统一，品牌识别度高",
-                    "互动引导设计自然，评论转化率较高"
-                ]
-            },
-            "dimension_comparisons": [
-                {
-                    "dimension": "钩子策略",
-                    "group_a_performance": "采用结果前置型钩子，开场直接展示核心内容",
-                    "group_b_performance": "采用悬念型钩子，通过提问或冲突吸引注意",
-                    "gap_analysis": "A组开场更直接，B组更有悬念感，各有优势",
-                    "verdict": "持平"
-                },
-                {
-                    "dimension": "内容结构",
-                    "group_a_performance": "信息密度高，节奏紧凑，适合快速消费",
-                    "group_b_performance": "叙事节奏舒缓，注重情感铺垫和递进",
-                    "gap_analysis": "A组适合碎片化阅读，B组适合深度观看",
-                    "verdict": "A优" if a_avg_plays >= b_avg_plays else "B优"
-                },
-                {
-                    "dimension": "视觉风格",
-                    "group_a_performance": "画面简洁明了，重点突出，剪辑节奏快",
-                    "group_b_performance": "画面质感较好，色调统一，视觉记忆点强",
-                    "gap_analysis": "A组信息传达效率高，B组品牌调性更突出",
-                    "verdict": "持平"
-                },
-                {
-                    "dimension": "文案策略",
-                    "group_a_performance": "标题直接明了，使用数字和结果导向词汇",
-                    "group_b_performance": "标题富有情感，善于使用疑问句和共鸣词",
-                    "gap_analysis": "A组点击转化率高，B组用户情感连接更深",
-                    "verdict": "持平"
-                },
-                {
-                    "dimension": "BGM策略",
-                    "group_a_performance": "选择节奏明快的流行音乐，与内容节奏匹配",
-                    "group_b_performance": "选择情感氛围音乐，强化内容情绪表达",
-                    "gap_analysis": "两组BGM策略差异明显，适应不同内容风格",
-                    "verdict": "持平"
-                },
-                {
-                    "dimension": "互动引导",
-                    "group_a_performance": "CTA设计直接，明确引导点赞和关注",
-                    "group_b_performance": "通过情感共鸣自然引导用户评论互动",
-                    "gap_analysis": "A组转化路径清晰，B组用户参与感更强",
-                    "verdict": "B优"
-                }
-            ],
-            "start_comparison": {
-                "stop": {
-                    "group_a": "直接抛出结果或核心观点，快速截停用户滑动",
-                    "group_b": "通过情感共鸣点或悬念问题吸引用户停留",
-                    "verdict": "持平"
-                },
-                "tension": {
-                    "group_a": "用信息密度和节奏感维持用户注意力",
-                    "group_b": "通过情感递进和故事发展制造期待感",
-                    "verdict": "B优"
-                },
-                "authority": {
-                    "group_a": "通过专业知识和数据展示建立信任",
-                    "group_b": "通过真实经历和情感真诚获得认同",
-                    "verdict": "持平"
-                },
-                "reveal": {
-                    "group_a": "分步骤清晰交付核心价值，逻辑性强",
-                    "group_b": "通过故事高潮自然呈现价值，感染力强",
-                    "verdict": "持平"
-                },
-                "transfer": {
-                    "group_a": "明确给出行动指令，转化路径清晰",
-                    "group_b": "情感高点自然引导互动，用户参与感强",
-                    "verdict": "B优"
-                }
-            },
-            "script_template": "S (钩子): [结合A组的结果前置优势，直接展示核心利益点或反常识观点，同时融入B组的情感共鸣元素，让用户感到'这与我有关']\\nT (悬念): [采用B组的悬念制造技巧，暗示即将揭晓的答案或解决方案，但先铺垫情感背景或痛点场景]\\nA (信任): [融合A组的专业背书和B组的真实经历，一句话交代你的专业资质和亲身实践]\\nR (交付): [按照A组的清晰逻辑分3步交付价值，同时借鉴B组的情感表达方式，让信息传递更有温度]\\nT (引导): [结合A组的明确CTA和B组的情感引导，在情绪高点给出行动号召，如'如果你也有这样的困扰，双击屏幕让我知道'或'评论区分享你的经历']",
+            "actionable_script": "S (钩子): [先用结果、痛点或反常识句子截停用户，让人立刻知道看下去的价值]\\nT (悬念): [补一句为什么多数人会做错或忽略这一点，制造继续看的理由]\\nA (信任): [用一句真实经历、数据结果或身份背书建立可信度]\\nR (交付): [在前半段快速给出核心方法，再用一个具体场景解释怎么落地]\\nT (引导): [在价值交付后立刻引导点赞、收藏或评论，并告诉用户互动后能得到什么]",
         }
+
+        normalized = self._normalize_ab_comparison_result(
+            base_result,
+            group_a_videos,
+            group_b_videos,
+            group_a_label,
+            group_b_label,
+        )
+        normalized["raw_response"] = "[mock ab comparison analysis]"
+        return normalized

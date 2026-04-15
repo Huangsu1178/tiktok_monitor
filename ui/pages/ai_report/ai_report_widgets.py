@@ -181,28 +181,51 @@ def parse_script_template_stages(text: str):
     if not normalized:
         return []
 
-    stage_re = re.compile(
-        r"(?P<letter>[START])\s*[\(（]\s*(?P<title>[^)）:\n]{1,16})\s*[\)）]\s*[:：]",
+    header_re = re.compile(
+        r"^\s*(?:#{1,6}\s*)?(?:>\s*)?(?:\d{1,2}\.\s*)?(?:[-*]\s*)?(?:\*{1,2}\s*)?"
+        r"(?P<letter>[START])(?=\s|[\(\[（【\.\-、:：]|$)"
+        r"(?:(?:\s*[\(\[（【]\s*(?P<title_paren>[^()\[\]（）【】:：\n]{1,24})\s*[\)\]）】])"
+        r"|(?:\s*[\.\-、]\s*(?P<title_sep>[^:：\n]{1,24}))"
+        r"|(?:\s+(?P<title_text>[^:：\n]{1,24})))?"
+        r"\s*(?:\*{1,2})?\s*(?:[:：]\s*(?:\*{1,2})?\s*)?(?P<inline_body>.*)$",
         re.I,
     )
-    matches = list(stage_re.finditer(normalized))
-    if not matches:
-        return []
 
     stages: List[_ScriptStage] = []
-    for idx, match in enumerate(matches):
-        start = match.end()
-        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(normalized)
-        title = _clean_inline_markup(match.group("title"))
-        body = _normalize_script_stage_body(normalized[start:end])
+    current_stage = None
+    body_lines: List[str] = []
+
+    def flush_current_stage():
+        if current_stage is None:
+            return
+        body = _normalize_script_stage_body("\n".join(body_lines))
         stages.append(
             _ScriptStage(
-                letter=match.group("letter").upper(),
-                title=title,
+                letter=current_stage["letter"],
+                title=current_stage["title"],
                 body=body,
             )
         )
 
+    for raw_line in normalized.split("\n"):
+        match = header_re.match(raw_line)
+        if match:
+            flush_current_stage()
+            title = _clean_inline_markup(
+                match.group("title_paren") or match.group("title_sep") or match.group("title_text")
+            )
+            inline_body = (match.group("inline_body") or "").strip()
+            current_stage = {
+                "letter": match.group("letter").upper(),
+                "title": title,
+            }
+            body_lines = [inline_body] if inline_body else []
+            continue
+
+        if current_stage is not None:
+            body_lines.append(raw_line)
+
+    flush_current_stage()
     return [stage for stage in stages if stage.title or stage.body]
 
 

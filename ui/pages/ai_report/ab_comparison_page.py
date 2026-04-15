@@ -262,14 +262,8 @@ class ABComparisonPage(QWidget):
             self._show_status("请至少选择1个B组视频", "#ffb86b")
             return
         
-        group_a_label = "A组"
-        group_b_label = "B组"
-        
-        # 从视频中获取博主信息
-        if group_a_videos and "influencer_username" in group_a_videos[0]:
-            group_a_label = group_a_videos[0]["influencer_username"]
-        if group_b_videos and "influencer_username" in group_b_videos[0]:
-            group_b_label = group_b_videos[0]["influencer_username"]
+        group_a_label = self._resolve_group_label(group_a_videos, "A组")
+        group_b_label = self._resolve_group_label(group_b_videos, "B组")
         
         self._render_loading()
         self._start_worker(
@@ -359,7 +353,7 @@ class ABComparisonPage(QWidget):
     
     def _render_loading(self):
         """渲染加载状态"""
-        panel = EmptyState("正在进行AB对比分析", "正在对比两组视频的表现差异、分析原因并生成优化建议，请稍候。")
+        panel = EmptyState("正在进行AB对比分析", "正在诊断两组视频在流量、结构和互动上的差异，并整理成“是什么、为什么、怎么做”的报告。")
         note = QLabel("AI 正在生成结构化报告，界面会保持响应，完成后自动展示结果。")
         note.setAlignment(Qt.AlignmentFlag.AlignCenter)
         note.setWordWrap(True)
@@ -372,62 +366,78 @@ class ABComparisonPage(QWidget):
         self._set_scroll_content(
             [EmptyState(
                 "AB对比分析",
-                "选择两组视频进行对比分析，找出表现差异的根本原因和优化建议。",
+                "选择两组视频进行诊断分析，例如高流量组 vs 低流量组、不同选题组或不同内容风格组，找出差异、原因和可执行动作。",
             )]
         )
+
+    def _resolve_group_label(self, videos: list, fallback: str) -> str:
+        usernames = []
+        for video in videos:
+            username = (video or {}).get("influencer_username", "")
+            if username and username not in usernames:
+                usernames.append(username)
+
+        if len(usernames) == 1:
+            return usernames[0]
+        return fallback
     
     def show_analysis(self, result: dict, group_a_label: str = "A组", group_b_label: str = "B组"):
         """展示分析结果"""
         widgets = []
-        
+
         winner = result.get("winner", "")
-        winner_badge = ""
-        if winner == "A":
-            winner_badge = f"🏆 {group_a_label} 胜出"
-        elif winner == "B":
-            winner_badge = f"🏆 {group_b_label} 胜出"
-        else:
-            winner_badge = "🤝 两组持平"
-        
-        hero = self._build_hero(group_a_label, group_b_label, winner_badge, winner)
-        widgets.append(hero)
-        
-        overview = self._build_overview(result, group_a_label, group_b_label, winner)
-        widgets.append(overview)
-        
-        winner_reason = result.get("winner_reason", "")
-        if winner_reason:
-            reason_widget = self._build_winner_reason(winner_reason, winner)
-            widgets.append(reason_widget)
-        
+        diagnosis_summary = result.get("diagnosis_summary", {})
+        performance_gap_summary = result.get("performance_gap_summary", {})
+
+        widgets.append(self._build_hero(group_a_label, group_b_label, diagnosis_summary, winner))
+
+        if diagnosis_summary:
+            widgets.append(self._build_diagnosis_summary(diagnosis_summary))
+
+        if performance_gap_summary:
+            widgets.append(self._build_gap_summary(performance_gap_summary, winner, group_a_label, group_b_label))
+
+        widgets.append(self._build_overview(result, group_a_label, group_b_label, winner))
+
+        key_differences = result.get("key_differences", [])
+        if key_differences:
+            widgets.append(self._build_key_differences_section(key_differences))
+
         dimension_comparisons = result.get("dimension_comparisons", [])
         if dimension_comparisons:
             dim_section = self._build_dimension_comparison_section(dimension_comparisons, group_a_label, group_b_label)
             widgets.append(dim_section)
-        
-        start_comparison = result.get("start_comparison", {})
-        if start_comparison:
-            start_widget = self._build_start_comparison(start_comparison, group_a_label, group_b_label)
-            widgets.append(start_widget)
-        
+
         root_causes = result.get("root_causes", [])
         if root_causes:
             root_causes_widget = self._build_root_causes_section(root_causes)
             widgets.append(root_causes_widget)
-        
+
         optimization_suggestions = result.get("optimization_suggestions", [])
         if optimization_suggestions:
             suggestions_widget = self._build_optimization_suggestions(optimization_suggestions)
             widgets.append(suggestions_widget)
-        
+
+        start_comparison = result.get("start_comparison", {})
+        if start_comparison:
+            start_widget = self._build_start_comparison(start_comparison, group_a_label, group_b_label)
+            widgets.append(start_widget)
+
         script_template = result.get("script_template", "")
         if script_template:
             script_widget = self._build_script_template_widget(script_template)
             widgets.append(script_widget)
-        
+
         self._set_scroll_content(widgets)
-    
-    def _build_hero(self, group_a_label: str, group_b_label: str, winner_badge: str, winner: str):
+
+    def _winner_badge_text(self, winner: str, group_a_label: str, group_b_label: str) -> str:
+        if winner == "A":
+            return f"当前整体表现更强: {group_a_label}"
+        if winner == "B":
+            return f"当前整体表现更强: {group_b_label}"
+        return "两组各有优势，建议按维度迁移"
+
+    def _build_hero(self, group_a_label: str, group_b_label: str, diagnosis_summary: dict, winner: str):
         """构建英雄区"""
         frame = QFrame()
         accent_color = "#ffd700" if winner else "#8fa6c9"
@@ -435,16 +445,21 @@ class ABComparisonPage(QWidget):
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(22, 20, 22, 20)
         layout.setSpacing(10)
-        
-        title = QLabel("AB对比分析报告")
+
+        title = QLabel("AB对比诊断报告")
         title.setStyleSheet("color: #f3f7ff; font-size: 28px; font-weight: 800;")
         layout.addWidget(title)
-        
+
         subtitle = QLabel(f"{group_a_label} vs {group_b_label}")
         subtitle.setStyleSheet("color: #8fa6c9; font-size: 16px; font-weight: 600;")
         layout.addWidget(subtitle)
-        
-        badge = QLabel(winner_badge)
+
+        description = QLabel("目标不是简单判断谁赢，而是定位流量差异来自哪里、为什么会这样，以及下一步怎么追。")
+        description.setWordWrap(True)
+        description.setStyleSheet("color: #d6e1f2; font-size: 14px; line-height: 1.6;")
+        layout.addWidget(description)
+
+        badge = QLabel(self._winner_badge_text(winner, group_a_label, group_b_label))
         badge.setStyleSheet(
             f"""
             QLabel {{
@@ -460,28 +475,131 @@ class ABComparisonPage(QWidget):
         )
         badge.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         layout.addWidget(badge)
-        
+
+        what_text = diagnosis_summary.get("what", "")
+        if what_text:
+            insight = QLabel(what_text)
+            insight.setWordWrap(True)
+            insight.setStyleSheet("color: #f8fbff; font-size: 17px; font-weight: 600; line-height: 1.6;")
+            layout.addWidget(insight)
+
         return frame
-    
-    def _build_overview(self, result: dict, group_a_label: str, group_b_label: str, winner: str):
-        """构建概览区"""
+
+    def _build_diagnosis_summary(self, diagnosis_summary: dict):
+        """构建先看结论区"""
         container = QWidget()
-        layout = QHBoxLayout(container)
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        title = QLabel("先看结论")
+        title.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
+        layout.addWidget(title)
+
+        cards = QWidget()
+        cards_layout = QHBoxLayout(cards)
+        cards_layout.setContentsMargins(0, 0, 0, 0)
+        cards_layout.setSpacing(12)
+        cards_layout.addWidget(self._build_simple_info_card("是什么", diagnosis_summary.get("what", ""), "#63a4ff"), 1)
+        cards_layout.addWidget(self._build_simple_info_card("为什么", diagnosis_summary.get("why", ""), "#ff8a65"), 1)
+        cards_layout.addWidget(self._build_simple_info_card("怎么做", diagnosis_summary.get("how", ""), "#52c58b"), 1)
+        layout.addWidget(cards)
+
+        return container
+
+    def _build_gap_summary(self, gap_summary: dict, winner: str, group_a_label: str, group_b_label: str):
+        """构建差距摘要区"""
+        accent_color = "#ffd700" if winner else "#8fa6c9"
+        frame = QFrame()
+        frame.setStyleSheet(
+            f"""
+            QFrame {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #162235, stop:1 #101a29);
+                border: 1px solid {accent_color}44;
+                border-radius: 16px;
+            }}
+            """
+        )
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setSpacing(10)
+
+        title = QLabel("差距摘要")
+        title.setStyleSheet(f"color: {accent_color}; font-size: 14px; font-weight: 700;")
+        layout.addWidget(title)
+
+        core_gap = QLabel(gap_summary.get("core_gap", ""))
+        core_gap.setWordWrap(True)
+        core_gap.setStyleSheet("color: #f3f7ff; font-size: 17px; font-weight: 600; line-height: 1.6;")
+        layout.addWidget(core_gap)
+
+        metric_focus = gap_summary.get("metric_focus", "")
+        if metric_focus:
+            metric_label = QLabel(f"重点指标: {metric_focus}")
+            metric_label.setWordWrap(True)
+            metric_label.setStyleSheet("color: #8fa6c9; font-size: 13px;")
+            layout.addWidget(metric_label)
+
+        recommended_direction = gap_summary.get("recommended_direction", "")
+        if recommended_direction:
+            direction_label = QLabel(f"建议方向: {recommended_direction}")
+            direction_label.setWordWrap(True)
+            direction_label.setStyleSheet("color: #d6e1f2; font-size: 14px; line-height: 1.6;")
+            layout.addWidget(direction_label)
+
+        return frame
+
+    def _build_simple_info_card(self, title_text: str, body: str, accent: str):
+        frame = QFrame()
+        frame.setStyleSheet(
+            f"""
+            QFrame {{
+                background-color: {BG_PANEL};
+                border: 1px solid {accent}44;
+                border-radius: 14px;
+            }}
+            """
+        )
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(8)
+
+        title = QLabel(title_text)
+        title.setStyleSheet(f"color: {accent}; font-size: 14px; font-weight: 700;")
+        layout.addWidget(title)
+
+        layout.addWidget(build_structured_content(body, accent, "暂无内容"))
+        return frame
+
+    def _build_overview(self, result: dict, group_a_label: str, group_b_label: str, winner: str):
+        """构建组别画像区"""
+        container = QWidget()
+        outer_layout = QVBoxLayout(container)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.setSpacing(12)
+
+        title = QLabel("组别画像")
+        title.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
+        outer_layout.addWidget(title)
+
+        layout = QHBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
-        
+
         group_a_data = result.get("group_a_overview", {})
         a_border_color = "#52c58b" if winner == "A" else BORDER
         a_card = self._build_group_overview_card(group_a_label, group_a_data, a_border_color, winner == "A")
         layout.addWidget(a_card, 1)
-        
+
         group_b_data = result.get("group_b_overview", {})
         b_border_color = "#63a4ff" if winner == "B" else BORDER
         b_card = self._build_group_overview_card(group_b_label, group_b_data, b_border_color, winner == "B")
         layout.addWidget(b_card, 1)
-        
+        outer_layout.addLayout(layout)
+
         return container
-    
+
     def _build_group_overview_card(self, label: str, data: dict, border_color: str, is_winner: bool):
         """构建组概览卡片"""
         frame = QFrame()
@@ -497,13 +615,13 @@ class ABComparisonPage(QWidget):
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(12)
-        
+
         header = QLabel(label)
         header.setStyleSheet(f"color: {border_color}; font-size: 16px; font-weight: 700;")
         layout.addWidget(header)
-        
+
         if is_winner:
-            winner_label = QLabel("🏆 胜出")
+            winner_label = QLabel("当前整体更强")
             winner_label.setStyleSheet(
                 """
                 QLabel {
@@ -519,52 +637,126 @@ class ABComparisonPage(QWidget):
             )
             winner_label.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
             layout.addWidget(winner_label)
-        
+
+        stats_row = QHBoxLayout()
+        stats_row.setSpacing(8)
+        stats_row.addWidget(self._build_metric_pill("样本", str(data.get("sample_count", "-")), border_color))
+        stats_row.addWidget(self._build_metric_pill("平均播放", str(data.get("avg_plays", "-")), border_color))
+        stats_row.addWidget(self._build_metric_pill("互动率", str(data.get("avg_engagement_rate", "-")), border_color))
+        stats_row.addStretch()
+        layout.addLayout(stats_row)
+
+        extra_stats_row = QHBoxLayout()
+        extra_stats_row.setSpacing(8)
+        extra_stats_row.addWidget(self._build_metric_pill("中位播放", str(data.get("median_plays", "-")), "#8fa6c9"))
+        extra_stats_row.addWidget(self._build_metric_pill("最高播放", str(data.get("top_play_count", "-")), "#8fa6c9"))
+        extra_stats_row.addStretch()
+        layout.addLayout(extra_stats_row)
+
         hook_type = data.get("hook_type", "")
         if hook_type:
             hook_widget = QLabel(f"主要钩子: {hook_type}")
+            hook_widget.setWordWrap(True)
             hook_widget.setStyleSheet("color: #c6d5ea; font-size: 13px;")
             layout.addWidget(hook_widget)
-        
+
+        content_pattern = data.get("content_pattern", "")
+        if content_pattern:
+            pattern_widget = QLabel(f"内容模式: {content_pattern}")
+            pattern_widget.setWordWrap(True)
+            pattern_widget.setStyleSheet("color: #d6e1f2; font-size: 13px; line-height: 1.6;")
+            layout.addWidget(pattern_widget)
+
+        strengths = self._ensure_text_list(data.get("strengths", []))
+        if strengths:
+            strengths_label = QLabel("当前有效动作")
+            strengths_label.setStyleSheet("color: #52c58b; font-size: 13px; font-weight: 700;")
+            layout.addWidget(strengths_label)
+            layout.addWidget(build_structured_content("\n".join(f"- {item}" for item in strengths), "#52c58b", "暂无"))
+
+        weaknesses = self._ensure_text_list(data.get("weaknesses", []))
+        if weaknesses:
+            weaknesses_label = QLabel("当前短板")
+            weaknesses_label.setStyleSheet("color: #ff8a65; font-size: 13px; font-weight: 700;")
+            layout.addWidget(weaknesses_label)
+            layout.addWidget(build_structured_content("\n".join(f"- {item}" for item in weaknesses), "#ff8a65", "暂无"))
+
         return frame
-    
-    def _build_winner_reason(self, reason: str, winner: str):
-        """构建胜出原因区"""
-        frame = QFrame()
-        accent = "#ffd700" if winner else "#8fa6c9"
-        frame.setStyleSheet(
+
+    def _build_metric_pill(self, title: str, value: str, accent: str):
+        label = QLabel(f"{title}: {value}")
+        label.setStyleSheet(
             f"""
-            QFrame {{
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 #1a2a1a, stop:1 #1a2a3a);
+            QLabel {{
+                background-color: {accent}22;
+                color: {accent};
                 border: 1px solid {accent}44;
-                border-radius: 16px;
+                border-radius: 10px;
+                padding: 5px 10px;
+                font-size: 12px;
+                font-weight: 700;
             }}
             """
         )
-        layout = QVBoxLayout(frame)
-        layout.setContentsMargins(20, 18, 20, 18)
-        layout.setSpacing(10)
-        
-        title = QLabel("胜出关键因素")
-        title.setStyleSheet(f"color: {accent}; font-size: 14px; font-weight: 700;")
+        return label
+
+    def _ensure_text_list(self, value):
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        if value:
+            return [str(value).strip()]
+        return []
+
+    def _build_key_differences_section(self, key_differences: list):
+        """构建关键差异区"""
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        title = QLabel("关键差异")
+        title.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
         layout.addWidget(title)
-        
-        reason_label = QLabel(reason)
-        reason_label.setWordWrap(True)
-        reason_label.setStyleSheet("color: #f3f7ff; font-size: 18px; font-weight: 600; line-height: 1.6;")
-        layout.addWidget(reason_label)
-        
-        return frame
-    
+
+        for item in key_differences[:5]:
+            if isinstance(item, dict):
+                dimension = item.get("dimension", "关键差异")
+                difference = item.get("difference", "")
+                impact = item.get("impact", "")
+            else:
+                dimension = "关键差异"
+                difference = str(item)
+                impact = ""
+
+            card = QFrame()
+            card.setStyleSheet(card_style("#63a4ff"))
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(16, 14, 16, 14)
+            card_layout.setSpacing(8)
+
+            header = QLabel(dimension)
+            header.setStyleSheet("color: #63a4ff; font-size: 14px; font-weight: 700;")
+            card_layout.addWidget(header)
+            card_layout.addWidget(build_structured_content(difference, "#63a4ff", "暂无差异说明"))
+
+            if impact:
+                impact_label = QLabel(f"影响: {impact}")
+                impact_label.setWordWrap(True)
+                impact_label.setStyleSheet("color: #d6e1f2; font-size: 13px; line-height: 1.6;")
+                card_layout.addWidget(impact_label)
+
+            layout.addWidget(card)
+
+        return container
+
     def _build_dimension_comparison_section(self, comparisons: list, group_a_label: str, group_b_label: str):
         """构建维度对比区"""
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
-        
-        title = QLabel("逐维度对比分析")
+
+        title = QLabel("逐维度拆解")
         title.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
         layout.addWidget(title)
         
@@ -645,8 +837,8 @@ class ABComparisonPage(QWidget):
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
-        
-        title = QLabel("S.T.A.R.T 框架对比")
+
+        title = QLabel("策略迁移参考")
         title.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
         layout.addWidget(title)
         
@@ -722,44 +914,63 @@ class ABComparisonPage(QWidget):
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
-        
+
         title = QLabel("根本原因分析")
         title.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
         layout.addWidget(title)
-        
+
         for idx, cause in enumerate(root_causes[:3], 1):
-            card = AnalysisCard(f"原因 {idx}", cause, "#ff7b65")
+            if isinstance(cause, dict):
+                title_text = cause.get("title", f"原因 {idx}")
+                reason = cause.get("reason", "")
+                mechanism = cause.get("mechanism", "")
+                body = reason
+                if mechanism:
+                    body = f"{reason}\n\n机制: {mechanism}" if reason else f"机制: {mechanism}"
+            else:
+                title_text = f"原因 {idx}"
+                body = str(cause)
+
+            card = AnalysisCard(title_text, body, "#ff7b65")
             layout.addWidget(card)
-        
+
         return container
-    
+
     def _build_optimization_suggestions(self, suggestions: list):
         """构建优化建议区"""
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
-        
-        title = QLabel("优化建议")
+
+        title = QLabel("下一步怎么做")
         title.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
         layout.addWidget(title)
-        
+
         priority_colors = {
             "高": ("#f47f8b", "#f47f8b22"),
             "中": ("#f2b265", "#f2b26522"),
             "低": ("#52c58b", "#52c58b22"),
         }
-        
+
         for suggestion in suggestions[:5]:
             if isinstance(suggestion, dict):
                 content = suggestion.get("suggestion", "")
                 priority = suggestion.get("priority", "中")
+                target_group = suggestion.get("target_group", "")
+                why_this_matters = suggestion.get("why_this_matters", "")
+                expected_impact = suggestion.get("expected_impact", "")
+                how_to_execute = suggestion.get("how_to_execute", "")
             else:
                 content = str(suggestion)
                 priority = "中"
-            
+                target_group = ""
+                why_this_matters = ""
+                expected_impact = ""
+                how_to_execute = ""
+
             color, bg_color = priority_colors.get(priority, ("#f2b265", "#f2b26522"))
-            
+
             card = QFrame()
             card.setStyleSheet(
                 f"""
@@ -790,12 +1001,42 @@ class ABComparisonPage(QWidget):
             )
             header.addWidget(priority_label)
             header.addStretch()
+            if target_group:
+                target_label = QLabel(f"对象: {target_group}")
+                target_label.setStyleSheet(
+                    """
+                    QLabel {
+                        color: #d6e1f2;
+                        font-size: 12px;
+                        font-weight: 600;
+                    }
+                    """
+                )
+                header.addWidget(target_label)
             card_layout.addLayout(header)
-            
+
             card_layout.addWidget(build_structured_content(content, color, "暂无建议内容"))
-            
+
+            if why_this_matters:
+                why_label = QLabel(f"为什么做: {why_this_matters}")
+                why_label.setWordWrap(True)
+                why_label.setStyleSheet("color: #d6e1f2; font-size: 13px; line-height: 1.6;")
+                card_layout.addWidget(why_label)
+
+            if how_to_execute:
+                how_label = QLabel(f"怎么做: {how_to_execute}")
+                how_label.setWordWrap(True)
+                how_label.setStyleSheet("color: #d6e1f2; font-size: 13px; line-height: 1.6;")
+                card_layout.addWidget(how_label)
+
+            if expected_impact:
+                impact_label = QLabel(f"预期效果: {expected_impact}")
+                impact_label.setWordWrap(True)
+                impact_label.setStyleSheet("color: #8fa6c9; font-size: 12px;")
+                card_layout.addWidget(impact_label)
+
             layout.addWidget(card)
-        
+
         return container
     
     def _build_script_template_widget(self, script_template: str):
