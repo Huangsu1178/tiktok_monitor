@@ -24,6 +24,8 @@ from ui.pages.influencer.influencer_page import InfluencerPage
 from ui.pages.settings.settings_page import SettingsPage
 from ui.components.theme import (
     ACCENT,
+    BG_APP,
+    BORDER,
     SUCCESS,
     TEXT_MUTED,
     TEXT_PRIMARY,
@@ -115,7 +117,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._build_sidebar())
 
         self.stack = QStackedWidget()
-        self.stack.setStyleSheet("QStackedWidget { background-color: #0d1522; }")
+        self.stack.setStyleSheet(f"QStackedWidget {{ background-color: {BG_APP}; }}")
         layout.addWidget(self.stack, 1)
 
         self.dashboard_page = DashboardPage(self)
@@ -161,7 +163,7 @@ class MainWindow(QMainWindow):
 
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("background-color: #263a56; margin: 12px 0;")
+        line.setStyleSheet(f"background-color: {BORDER}; margin: 12px 0;")
         line.setFixedHeight(1)
         layout.addWidget(line)
 

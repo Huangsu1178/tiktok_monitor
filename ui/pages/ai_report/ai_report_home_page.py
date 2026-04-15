@@ -17,10 +17,12 @@ from PyQt6.QtWidgets import (
 from ui.components.theme import (
     ACCENT,
     ACCENT_HOVER,
+    BG_APP,
     BG_PANEL,
     BG_SURFACE,
     BG_SURFACE_HOVER,
     BORDER,
+    BORDER_STRONG,
     TEAL,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
@@ -30,7 +32,7 @@ from ui.components.theme import (
 
 PAGE_STYLE = f"""
 QWidget {{
-    background-color: #0d1522;
+    background-color: {BG_APP};
 }}
 """
 
@@ -133,13 +135,13 @@ class AIReportHomePage(QWidget):
         """构建标题区"""
         header = QFrame()
         header.setStyleSheet(
-            """
-            QFrame {
+            f"""
+            QFrame {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 #122033, stop:0.45 #18283d, stop:1 #223752);
-                border: 1px solid #355071;
+                    stop:0 {BG_PANEL}, stop:0.45 {BG_SURFACE}, stop:1 {BG_SURFACE_HOVER});
+                border: 1px solid {BORDER_STRONG};
                 border-radius: 24px;
-            }
+            }}
             """
         )
         layout = QVBoxLayout(header)
@@ -148,17 +150,17 @@ class AIReportHomePage(QWidget):
         
         # 主标题
         title = QLabel("AI 分析报告中心")
-        title.setStyleSheet("color: #f4f8ff; font-size: 32px; font-weight: 800;")
+        title.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 32px; font-weight: 800;")
         layout.addWidget(title)
         
         # 副标题
         subtitle = QLabel("选择一种分析模式开始 AI 驱动的视频内容分析")
-        subtitle.setStyleSheet("color: #bfd0ea; font-size: 15px; line-height: 1.7;")
+        subtitle.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 15px; line-height: 1.8;")
         layout.addWidget(subtitle)
         
         # 说明文字
         note = QLabel("支持单视频深度拆解、批量规律总结和 AB 对比分析，所有分析结果会自动保存到数据库")
-        note.setStyleSheet("color: #8fa6c9; font-size: 13px;")
+        note.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 13px;")
         layout.addWidget(note)
         
         return header

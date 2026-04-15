@@ -132,13 +132,13 @@ class VideoListManager(QWidget):
         header = QHBoxLayout()
         
         title = QLabel("待分析视频")
-        title.setStyleSheet("color: #f4f8ff; font-size: 15px; font-weight: 700;")
+        title.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 15px; font-weight: 700;")
         header.addWidget(title)
         
         header.addStretch()
         
         self.count_label = QLabel("0 个视频")
-        self.count_label.setStyleSheet("color: #8fa6c9; font-size: 13px;")
+        self.count_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 13px;")
         header.addWidget(self.count_label)
         
         parent_layout.addLayout(header)
@@ -234,7 +234,7 @@ class VideoListManager(QWidget):
         a_header.addWidget(a_title)
         a_header.addStretch()
         self.a_count_label = QLabel("0 个视频")
-        self.a_count_label.setStyleSheet("color: #8fa6c9; font-size: 13px;")
+        self.a_count_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 13px;")
         a_header.addWidget(self.a_count_label)
         parent_layout.addLayout(a_header)
         
@@ -288,7 +288,7 @@ class VideoListManager(QWidget):
         
         # VS分隔符
         vs_label = QLabel("⚔️ VS")
-        vs_label.setStyleSheet("color: #f4f8ff; font-size: 20px; font-weight: 700; padding: 10px 0;")
+        vs_label.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 20px; font-weight: 700; padding: 10px 0;")
         vs_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         parent_layout.addWidget(vs_label)
         
@@ -299,7 +299,7 @@ class VideoListManager(QWidget):
         b_header.addWidget(b_title)
         b_header.addStretch()
         self.b_count_label = QLabel("0 个视频")
-        self.b_count_label.setStyleSheet("color: #8fa6c9; font-size: 13px;")
+        self.b_count_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 13px;")
         b_header.addWidget(self.b_count_label)
         parent_layout.addLayout(b_header)
         

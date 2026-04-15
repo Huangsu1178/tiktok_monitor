@@ -4,41 +4,43 @@ Shared visual theme for the desktop UI.
 
 APP_FONT_FAMILY = '"Microsoft YaHei", "Segoe UI", sans-serif'
 
-BG_APP = "#0d1522"
-BG_PANEL = "#121c2b"
-BG_PANEL_ALT = "#172233"
-BG_SIDEBAR = "#0f1826"
-BG_SURFACE = "#1a2638"
-BG_SURFACE_HOVER = "#22324a"
-BG_MUTED = "#24364f"
+BG_APP = "#11161d"
+BG_PANEL = "#18202a"
+BG_PANEL_ALT = "#1d2733"
+BG_SIDEBAR = "#151c25"
+BG_SURFACE = "#202b38"
+BG_SURFACE_HOVER = "#293749"
+BG_MUTED = "#334558"
 
-TEXT_PRIMARY = "#edf3ff"
-TEXT_SECONDARY = "#aab9cf"
-TEXT_MUTED = "#7f8ea7"
+TEXT_PRIMARY = "#f6f3eb"
+TEXT_SECONDARY = "#d7dee8"
+TEXT_MUTED = "#9aa8ba"
 
-BORDER = "#263a56"
-BORDER_STRONG = "#365071"
+BORDER = "#314153"
+BORDER_STRONG = "#43627e"
 
-ACCENT = "#ff7a59"
-ACCENT_HOVER = "#ff8b6d"
-ACCENT_SOFT = "#fff1ec"
+ACCENT = "#e88b63"
+ACCENT_HOVER = "#ee9d78"
+ACCENT_SOFT = "#30231b"
 
-SUCCESS = "#52c58b"
-WARNING = "#f2b265"
-DANGER = "#f47f8b"
-DANGER_HOVER = "#f6959e"
-INFO = "#63a4ff"
-VIOLET = "#7c8cff"
-TEAL = "#52c7b8"
+SUCCESS = "#78c89f"
+WARNING = "#f0bf7a"
+DANGER = "#ef8d93"
+DANGER_HOVER = "#f3a6ab"
+INFO = "#7caef5"
+VIOLET = "#92a2f7"
+TEAL = "#6ec8b5"
 
 
 def global_stylesheet() -> str:
     return f"""
     QMainWindow {{
         background-color: {BG_APP};
+        color: {TEXT_PRIMARY};
     }}
     QWidget#main_content {{
         background-color: {BG_APP};
+        color: {TEXT_PRIMARY};
     }}
     QScrollBar:vertical {{
         background: {BG_PANEL};
@@ -73,11 +75,11 @@ def page_title_style() -> str:
 
 
 def body_text_style() -> str:
-    return f"color: {TEXT_SECONDARY}; font-size: 13px; line-height: 1.6;"
+    return f"color: {TEXT_SECONDARY}; font-size: 13px; line-height: 1.7;"
 
 
 def subtle_text_style() -> str:
-    return f"color: {TEXT_MUTED}; font-size: 12px; line-height: 1.6;"
+    return f"color: {TEXT_MUTED}; font-size: 12px; line-height: 1.7;"
 
 
 def sidebar_style() -> str:
@@ -108,8 +110,8 @@ def nav_button_style() -> str:
     }}
     QPushButton:checked {{
         background-color: {ACCENT_SOFT};
-        color: {ACCENT};
-        border-color: #ffd4c7;
+        color: {ACCENT_HOVER};
+        border-color: {ACCENT};
     }}
     """
 
@@ -118,7 +120,7 @@ def primary_button_style() -> str:
     return f"""
     QPushButton {{
         background-color: {ACCENT};
-        color: white;
+        color: #fffaf4;
         border: none;
         border-radius: 10px;
         padding: 10px 18px;
@@ -190,7 +192,7 @@ def accent_button_style() -> str:
     return f"""
     QPushButton {{
         background-color: {VIOLET};
-        color: white;
+        color: #fffaf4;
         border: none;
         border-radius: 10px;
         padding: 10px 16px;
@@ -207,7 +209,7 @@ def success_button_style() -> str:
     return f"""
     QPushButton {{
         background-color: {TEAL};
-        color: white;
+        color: #fffaf4;
         border: none;
         border-radius: 8px;
         padding: 6px 10px;

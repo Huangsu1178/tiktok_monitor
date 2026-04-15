@@ -17,9 +17,12 @@ from PyQt6.QtWidgets import (
 
 from core.platforms import platform_label
 from ui.components.theme import (
+    BG_APP,
+    BG_MUTED,
     BG_PANEL,
     BG_SURFACE,
     BORDER,
+    BORDER_STRONG,
     SUCCESS,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
@@ -38,7 +41,7 @@ from ui.components.video_list_manager import VideoListManager
 
 PAGE_STYLE = f"""
 QWidget {{
-    background-color: #0d1522;
+    background-color: {BG_APP};
 }}
 QScrollArea {{
     border: none;
@@ -99,24 +102,24 @@ class ABComparisonPage(QWidget):
         main_scroll = QScrollArea()
         main_scroll.setWidgetResizable(True)
         main_scroll.setStyleSheet(
-            """
-            QScrollArea {
+            f"""
+            QScrollArea {{
                 border: none;
                 background-color: transparent;
-            }
-            QScrollBar:vertical {
-                background-color: #152136;
+            }}
+            QScrollBar:vertical {{
+                background-color: {BG_PANEL};
                 width: 10px;
                 border-radius: 5px;
-            }
-            QScrollBar::handle:vertical {
-                background-color: #2f476b;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {BG_MUTED};
                 border-radius: 5px;
                 min-height: 30px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background-color: #3d5a80;
-            }
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {BORDER_STRONG};
+            }}
             """
         )
         
@@ -167,7 +170,7 @@ class ABComparisonPage(QWidget):
         top_bar.addWidget(back_btn)
         
         title = QLabel("AB对比分析")
-        title.setStyleSheet("color: #f4f8ff; font-size: 20px; font-weight: 700;")
+        title.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 20px; font-weight: 700;")
         top_bar.addWidget(title)
         
         top_bar.addStretch()
@@ -447,16 +450,16 @@ class ABComparisonPage(QWidget):
         layout.setSpacing(10)
 
         title = QLabel("AB对比诊断报告")
-        title.setStyleSheet("color: #f3f7ff; font-size: 28px; font-weight: 800;")
+        title.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 28px; font-weight: 800;")
         layout.addWidget(title)
 
         subtitle = QLabel(f"{group_a_label} vs {group_b_label}")
-        subtitle.setStyleSheet("color: #8fa6c9; font-size: 16px; font-weight: 600;")
+        subtitle.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 16px; font-weight: 600;")
         layout.addWidget(subtitle)
 
         description = QLabel("目标不是简单判断谁赢，而是定位流量差异来自哪里、为什么会这样，以及下一步怎么追。")
         description.setWordWrap(True)
-        description.setStyleSheet("color: #d6e1f2; font-size: 14px; line-height: 1.6;")
+        description.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 14px; line-height: 1.75;")
         layout.addWidget(description)
 
         badge = QLabel(self._winner_badge_text(winner, group_a_label, group_b_label))
@@ -480,7 +483,7 @@ class ABComparisonPage(QWidget):
         if what_text:
             insight = QLabel(what_text)
             insight.setWordWrap(True)
-            insight.setStyleSheet("color: #f8fbff; font-size: 17px; font-weight: 600; line-height: 1.6;")
+            insight.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 17px; font-weight: 600; line-height: 1.7;")
             layout.addWidget(insight)
 
         return frame
@@ -493,7 +496,7 @@ class ABComparisonPage(QWidget):
         layout.setSpacing(12)
 
         title = QLabel("先看结论")
-        title.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
+        title.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 16px; font-weight: 700;")
         layout.addWidget(title)
 
         cards = QWidget()
@@ -531,21 +534,21 @@ class ABComparisonPage(QWidget):
 
         core_gap = QLabel(gap_summary.get("core_gap", ""))
         core_gap.setWordWrap(True)
-        core_gap.setStyleSheet("color: #f3f7ff; font-size: 17px; font-weight: 600; line-height: 1.6;")
+        core_gap.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 17px; font-weight: 600; line-height: 1.7;")
         layout.addWidget(core_gap)
 
         metric_focus = gap_summary.get("metric_focus", "")
         if metric_focus:
             metric_label = QLabel(f"重点指标: {metric_focus}")
             metric_label.setWordWrap(True)
-            metric_label.setStyleSheet("color: #8fa6c9; font-size: 13px;")
+            metric_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 13px;")
             layout.addWidget(metric_label)
 
         recommended_direction = gap_summary.get("recommended_direction", "")
         if recommended_direction:
             direction_label = QLabel(f"建议方向: {recommended_direction}")
             direction_label.setWordWrap(True)
-            direction_label.setStyleSheet("color: #d6e1f2; font-size: 14px; line-height: 1.6;")
+            direction_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 14px; line-height: 1.75;")
             layout.addWidget(direction_label)
 
         return frame
@@ -580,7 +583,7 @@ class ABComparisonPage(QWidget):
         outer_layout.setSpacing(12)
 
         title = QLabel("组别画像")
-        title.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
+        title.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 16px; font-weight: 700;")
         outer_layout.addWidget(title)
 
         layout = QHBoxLayout()
@@ -657,14 +660,14 @@ class ABComparisonPage(QWidget):
         if hook_type:
             hook_widget = QLabel(f"主要钩子: {hook_type}")
             hook_widget.setWordWrap(True)
-            hook_widget.setStyleSheet("color: #c6d5ea; font-size: 13px;")
+            hook_widget.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 13px;")
             layout.addWidget(hook_widget)
 
         content_pattern = data.get("content_pattern", "")
         if content_pattern:
             pattern_widget = QLabel(f"内容模式: {content_pattern}")
             pattern_widget.setWordWrap(True)
-            pattern_widget.setStyleSheet("color: #d6e1f2; font-size: 13px; line-height: 1.6;")
+            pattern_widget.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 13px; line-height: 1.7;")
             layout.addWidget(pattern_widget)
 
         strengths = self._ensure_text_list(data.get("strengths", []))
@@ -715,7 +718,7 @@ class ABComparisonPage(QWidget):
         layout.setSpacing(12)
 
         title = QLabel("关键差异")
-        title.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
+        title.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 16px; font-weight: 700;")
         layout.addWidget(title)
 
         for item in key_differences[:5]:
@@ -742,7 +745,7 @@ class ABComparisonPage(QWidget):
             if impact:
                 impact_label = QLabel(f"影响: {impact}")
                 impact_label.setWordWrap(True)
-                impact_label.setStyleSheet("color: #d6e1f2; font-size: 13px; line-height: 1.6;")
+                impact_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 13px; line-height: 1.7;")
                 card_layout.addWidget(impact_label)
 
             layout.addWidget(card)
@@ -757,7 +760,7 @@ class ABComparisonPage(QWidget):
         layout.setSpacing(12)
 
         title = QLabel("逐维度拆解")
-        title.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
+        title.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 16px; font-weight: 700;")
         layout.addWidget(title)
         
         for comp in comparisons:
@@ -782,7 +785,7 @@ class ABComparisonPage(QWidget):
         
         header = QHBoxLayout()
         dim_label = QLabel(dimension)
-        dim_label.setStyleSheet("color: #f3f7ff; font-size: 14px; font-weight: 700;")
+        dim_label.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 14px; font-weight: 700;")
         header.addWidget(dim_label)
         header.addStretch()
         
@@ -825,7 +828,7 @@ class ABComparisonPage(QWidget):
         
         if gap_analysis:
             gap_label = QLabel(f"差距分析: {gap_analysis}")
-            gap_label.setStyleSheet("color: #8fa6c9; font-size: 12px; font-style: italic;")
+            gap_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 12px; font-style: italic;")
             gap_label.setWordWrap(True)
             layout.addWidget(gap_label)
         
@@ -839,7 +842,7 @@ class ABComparisonPage(QWidget):
         layout.setSpacing(12)
 
         title = QLabel("策略迁移参考")
-        title.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
+        title.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 16px; font-weight: 700;")
         layout.addWidget(title)
         
         start_stages = [
@@ -916,7 +919,7 @@ class ABComparisonPage(QWidget):
         layout.setSpacing(12)
 
         title = QLabel("根本原因分析")
-        title.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
+        title.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 16px; font-weight: 700;")
         layout.addWidget(title)
 
         for idx, cause in enumerate(root_causes[:3], 1):
@@ -944,7 +947,7 @@ class ABComparisonPage(QWidget):
         layout.setSpacing(12)
 
         title = QLabel("下一步怎么做")
-        title.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
+        title.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 16px; font-weight: 700;")
         layout.addWidget(title)
 
         priority_colors = {
@@ -1004,12 +1007,12 @@ class ABComparisonPage(QWidget):
             if target_group:
                 target_label = QLabel(f"对象: {target_group}")
                 target_label.setStyleSheet(
-                    """
-                    QLabel {
-                        color: #d6e1f2;
+                    f"""
+                    QLabel {{
+                        color: {TEXT_SECONDARY};
                         font-size: 12px;
                         font-weight: 600;
-                    }
+                    }}
                     """
                 )
                 header.addWidget(target_label)
@@ -1020,19 +1023,19 @@ class ABComparisonPage(QWidget):
             if why_this_matters:
                 why_label = QLabel(f"为什么做: {why_this_matters}")
                 why_label.setWordWrap(True)
-                why_label.setStyleSheet("color: #d6e1f2; font-size: 13px; line-height: 1.6;")
+                why_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 13px; line-height: 1.7;")
                 card_layout.addWidget(why_label)
 
             if how_to_execute:
                 how_label = QLabel(f"怎么做: {how_to_execute}")
                 how_label.setWordWrap(True)
-                how_label.setStyleSheet("color: #d6e1f2; font-size: 13px; line-height: 1.6;")
+                how_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 13px; line-height: 1.7;")
                 card_layout.addWidget(how_label)
 
             if expected_impact:
                 impact_label = QLabel(f"预期效果: {expected_impact}")
                 impact_label.setWordWrap(True)
-                impact_label.setStyleSheet("color: #8fa6c9; font-size: 12px;")
+                impact_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 12px;")
                 card_layout.addWidget(impact_label)
 
             layout.addWidget(card)
@@ -1045,7 +1048,7 @@ class ABComparisonPage(QWidget):
         container.setStyleSheet(
             f"""
             QFrame {{
-                background-color: #1a1e24;
+                background-color: {BG_PANEL};
                 border: 1px solid {BORDER};
                 border-left: 4px solid #ffd700;
                 border-radius: 16px;
@@ -1062,12 +1065,12 @@ class ABComparisonPage(QWidget):
         
         content_frame = QFrame()
         content_frame.setStyleSheet(
-            """
-            QFrame {
-                background-color: #141820;
+            f"""
+            QFrame {{
+                background-color: {BG_SURFACE};
                 border-left: 3px solid #ffd700;
                 border-radius: 8px;
-            }
+            }}
             """
         )
         content_layout = QVBoxLayout(content_frame)

@@ -15,11 +15,15 @@ from PyQt6.QtWidgets import (
 )
 
 from ui.components.theme import (
+    BG_APP,
     BG_PANEL,
     BG_SURFACE,
+    BG_MUTED,
     BORDER,
+    BORDER_STRONG,
     SUCCESS,
     TEXT_PRIMARY,
+    TEXT_SECONDARY,
     input_style,
     card_style,
 )
@@ -35,7 +39,7 @@ from ui.pages.ai_report.ai_report_widgets import (
 
 PAGE_STYLE = f"""
 QWidget {{
-    background-color: #0d1522;
+    background-color: {BG_APP};
 }}
 QScrollArea {{
     border: none;
@@ -79,21 +83,24 @@ class BatchAnalysisPage(QWidget):
         main_scroll = QScrollArea()
         main_scroll.setWidgetResizable(True)
         main_scroll.setStyleSheet(
-            """
-            QScrollArea {
+            f"""
+            QScrollArea {{
                 border: none;
                 background-color: transparent;
-            }
-            QScrollBar:vertical {
-                background-color: #152136;
+            }}
+            QScrollBar:vertical {{
+                background-color: {BG_PANEL};
                 width: 10px;
                 border-radius: 5px;
-            }
-            QScrollBar::handle:vertical {
-                background-color: #2f476b;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {BG_MUTED};
                 border-radius: 5px;
                 min-height: 30px;
-            }
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {BORDER_STRONG};
+            }}
             """
         )
 
@@ -140,7 +147,7 @@ class BatchAnalysisPage(QWidget):
         top_bar.addWidget(back_btn)
 
         title = QLabel("批量规律分析")
-        title.setStyleSheet("color: #f4f8ff; font-size: 20px; font-weight: 700;")
+        title.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 20px; font-weight: 700;")
         top_bar.addWidget(title)
         top_bar.addStretch()
 
@@ -151,12 +158,12 @@ class BatchAnalysisPage(QWidget):
     def _build_header(self) -> QWidget:
         header = QFrame()
         header.setStyleSheet(
-            """
-            QFrame {
-                background-color: rgba(8, 14, 25, 0.28);
-                border: 1px solid #35507e;
+            f"""
+            QFrame {{
+                background-color: {BG_PANEL};
+                border: 1px solid {BORDER};
                 border-radius: 18px;
-            }
+            }}
             """
         )
 
@@ -170,21 +177,23 @@ class BatchAnalysisPage(QWidget):
         layout.addWidget(self.video_list_manager)
 
         self.context_badge = QLabel("当前范围：未选择")
-        self.context_badge.setStyleSheet("color: #8fa6c9; font-size: 12px; font-weight: 600;")
+        self.context_badge.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: 12px; font-weight: 600; padding: 2px 2px 0 2px;"
+        )
         layout.addWidget(self.context_badge)
 
         self.status_badge = QLabel("准备就绪")
         self.status_badge.setStyleSheet(
-            """
-            QLabel {
-                background-color: #152136;
-                color: #a9c2e8;
-                border: 1px solid #2f476b;
+            f"""
+            QLabel {{
+                background-color: {BG_SURFACE};
+                color: {TEXT_SECONDARY};
+                border: 1px solid {BORDER};
                 border-radius: 12px;
                 padding: 10px 14px;
                 font-size: 13px;
                 font-weight: 700;
-            }
+            }}
             """
         )
         layout.addWidget(self.status_badge)
@@ -296,9 +305,9 @@ class BatchAnalysisPage(QWidget):
         self.status_badge.setStyleSheet(
             f"""
             QLabel {{
-                background-color: #152136;
+                background-color: {BG_SURFACE};
                 color: {color};
-                border: 1px solid #2f476b;
+                border: 1px solid {BORDER};
                 border-radius: 12px;
                 padding: 10px 14px;
                 font-size: 13px;
@@ -383,12 +392,12 @@ class BatchAnalysisPage(QWidget):
 
         title_label = QLabel(title)
         title_label.setWordWrap(True)
-        title_label.setStyleSheet("color: #f3f7ff; font-size: 24px; font-weight: 800;")
+        title_label.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 24px; font-weight: 800;")
         layout.addWidget(title_label)
 
         desc_label = QLabel(desc)
         desc_label.setWordWrap(True)
-        desc_label.setStyleSheet("color: #c6d5ea; font-size: 14px; line-height: 1.75;")
+        desc_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 14px; line-height: 1.8;")
         layout.addWidget(desc_label)
 
         return frame
@@ -406,7 +415,7 @@ class BatchAnalysisPage(QWidget):
         layout.setSpacing(12)
 
         title = QLabel("S.T.A.R.T 共同模式")
-        title.setStyleSheet("color: #f3f7ff; font-size: 16px; font-weight: 700;")
+        title.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 16px; font-weight: 700;")
         layout.addWidget(title)
 
         stage_map = [
@@ -447,13 +456,13 @@ class BatchAnalysisPage(QWidget):
     def _build_script_template_section(self, template: str):
         container = QFrame()
         container.setStyleSheet(
-            """
-            QFrame {
-                background-color: #1a1e24;
-                border: 1px solid #2a3441;
+            f"""
+            QFrame {{
+                background-color: {BG_PANEL};
+                border: 1px solid {BORDER};
                 border-left: 4px solid #ffd700;
                 border-radius: 12px;
-            }
+            }}
             """
         )
         layout = QVBoxLayout(container)

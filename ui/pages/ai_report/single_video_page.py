@@ -21,9 +21,12 @@ from core.platforms import platform_label
 from ui.components.theme import (
     ACCENT,
     ACCENT_HOVER,
+    BG_APP,
+    BG_MUTED,
     BG_PANEL,
     BG_SURFACE,
     BORDER,
+    BORDER_STRONG,
     SUCCESS,
     TEAL,
     TEXT_PRIMARY,
@@ -49,7 +52,7 @@ from ui.components.video_list_manager import VideoListManager
 
 PAGE_STYLE = f"""
 QWidget {{
-    background-color: #0d1522;
+    background-color: {BG_APP};
 }}
 QScrollArea {{
     border: none;
@@ -100,24 +103,24 @@ class SingleVideoPage(QWidget):
         main_scroll = QScrollArea()
         main_scroll.setWidgetResizable(True)
         main_scroll.setStyleSheet(
-            """
-            QScrollArea {
+            f"""
+            QScrollArea {{
                 border: none;
                 background-color: transparent;
-            }
-            QScrollBar:vertical {
-                background-color: #152136;
+            }}
+            QScrollBar:vertical {{
+                background-color: {BG_PANEL};
                 width: 10px;
                 border-radius: 5px;
-            }
-            QScrollBar::handle:vertical {
-                background-color: #2f476b;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {BG_MUTED};
                 border-radius: 5px;
                 min-height: 30px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background-color: #3d5a80;
-            }
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {BORDER_STRONG};
+            }}
             """
         )
         
@@ -175,7 +178,7 @@ class SingleVideoPage(QWidget):
         
         # 标题
         title = QLabel("单视频分析")
-        title.setStyleSheet("color: #f4f8ff; font-size: 20px; font-weight: 700;")
+        title.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 20px; font-weight: 700;")
         top_bar.addWidget(title)
         
         top_bar.addStretch()
@@ -188,12 +191,12 @@ class SingleVideoPage(QWidget):
         """构建头部控制区"""
         header = QFrame()
         header.setStyleSheet(
-            """
-            QFrame {
-                background-color: rgba(8, 14, 25, 0.28);
-                border: 1px solid #35507e;
+            f"""
+            QFrame {{
+                background-color: {BG_PANEL};
+                border: 1px solid {BORDER};
                 border-radius: 18px;
-            }
+            }}
             """
         )
         controls_layout = QVBoxLayout(header)
@@ -208,16 +211,16 @@ class SingleVideoPage(QWidget):
 
         self.status_badge = QLabel("鍑嗗灏辩华")
         self.status_badge.setStyleSheet(
-            """
-            QLabel {
-                background-color: #152136;
-                color: #a9c2e8;
-                border: 1px solid #2f476b;
+            f"""
+            QLabel {{
+                background-color: {BG_SURFACE};
+                color: {TEXT_SECONDARY};
+                border: 1px solid {BORDER};
                 border-radius: 12px;
                 padding: 10px 14px;
                 font-size: 13px;
                 font-weight: 700;
-            }
+            }}
             """
         )
         controls_layout.addWidget(self.status_badge)
@@ -335,16 +338,16 @@ class SingleVideoPage(QWidget):
         dots = "." * (self._loading_step % 4)
         self.status_badge.setText(f"{self._loading_base}{dots}")
         self.status_badge.setStyleSheet(
-            """
-            QLabel {
-                background-color: #1f2a3d;
+            f"""
+            QLabel {{
+                background-color: {BG_SURFACE};
                 color: #ffd38b;
-                border: 1px solid #556885;
+                border: 1px solid {BORDER_STRONG};
                 border-radius: 12px;
                 padding: 10px 14px;
                 font-size: 13px;
                 font-weight: 700;
-            }
+            }}
             """
         )
         self._loading_step += 1
@@ -355,9 +358,9 @@ class SingleVideoPage(QWidget):
         self.status_badge.setStyleSheet(
             f"""
             QLabel {{
-                background-color: #152136;
+                background-color: {BG_SURFACE};
                 color: {color};
-                border: 1px solid #2f476b;
+                border: 1px solid {BORDER};
                 border-radius: 12px;
                 padding: 10px 14px;
                 font-size: 13px;
@@ -449,18 +452,18 @@ class SingleVideoPage(QWidget):
         
         title_label = QLabel(title)
         title_label.setWordWrap(True)
-        title_label.setStyleSheet("color: #f3f7ff; font-size: 24px; font-weight: 800;")
+        title_label.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 24px; font-weight: 800;")
         layout.addWidget(title_label)
         
         desc_label = QLabel(desc)
         desc_label.setWordWrap(True)
-        desc_label.setStyleSheet("color: #c6d5ea; font-size: 14px; line-height: 1.75;")
+        desc_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 14px; line-height: 1.8;")
         layout.addWidget(desc_label)
         
         if extra_text:
             extra_label = QLabel(extra_text)
             extra_label.setWordWrap(True)
-            extra_label.setStyleSheet("color: #8ea7ca; font-size: 12px;")
+            extra_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 12px;")
             layout.addWidget(extra_label)
         
         return frame
@@ -484,16 +487,16 @@ class SingleVideoPage(QWidget):
         hook_layout.setSpacing(8)
         
         hook_label = QLabel("核心钩子类型")
-        hook_label.setStyleSheet("color: #8fa6c9; font-size: 12px; font-weight: 600;")
+        hook_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 12px; font-weight: 600;")
         hook_layout.addWidget(hook_label)
         
         hook_value = QLabel(analysis.get("hook_type", "未知"))
-        hook_value.setStyleSheet("color: #f6f8ff; font-size: 24px; font-weight: 800;")
+        hook_value.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 24px; font-weight: 800;")
         hook_layout.addWidget(hook_value)
         
         hook_desc = QLabel(analysis.get("hook_description", "暂无钩子描述"))
         hook_desc.setWordWrap(True)
-        hook_desc.setStyleSheet("color: #d4e0f3; font-size: 14px; line-height: 1.7;")
+        hook_desc.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 14px; line-height: 1.75;")
         hook_layout.addWidget(build_structured_content(analysis.get("hook_description", ""), VIOLET, "暂无钩子描述"))
         
         return hook_banner
@@ -518,7 +521,7 @@ class SingleVideoPage(QWidget):
         layout.setSpacing(14)
         
         title_label = QLabel("S.T.A.R.T 框架拆解")
-        title_label.setStyleSheet("color: #f4f8ff; font-size: 16px; font-weight: 700;")
+        title_label.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 16px; font-weight: 700;")
         layout.addWidget(title_label)
         
         start_stages = [
@@ -534,7 +537,7 @@ class SingleVideoPage(QWidget):
             stage_card.setStyleSheet(
                 f"""
                 QFrame {{
-                    background-color: #1a1e24;
+                    background-color: {BG_SURFACE};
                     border-left: 4px solid {color};
                     border-radius: 10px;
                 }}
@@ -572,7 +575,7 @@ class SingleVideoPage(QWidget):
             
             stage_content = QLabel(start_framework.get(key, "暂无内容"))
             stage_content.setWordWrap(True)
-            stage_content.setStyleSheet("color: #c6d5ea; font-size: 13px; line-height: 1.6;")
+            stage_content.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 13px; line-height: 1.7;")
             content_layout.addWidget(stage_content)
             
             card_layout.addLayout(content_layout, 1)
@@ -587,12 +590,12 @@ class SingleVideoPage(QWidget):
             
         container = QFrame()
         container.setStyleSheet(
-            """
-            QFrame {
-                background-color: #1e2227;
-                border: 1px solid #2f3a4a;
+            f"""
+            QFrame {{
+                background-color: {BG_PANEL};
+                border: 1px solid {BORDER};
                 border-radius: 16px;
-            }
+            }}
             """
         )
         layout = QVBoxLayout(container)
@@ -600,12 +603,12 @@ class SingleVideoPage(QWidget):
         layout.setSpacing(12)
         
         title_label = QLabel("爆款达标线对比")
-        title_label.setStyleSheet("color: #f4f8ff; font-size: 16px; font-weight: 700;")
+        title_label.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 16px; font-weight: 700;")
         layout.addWidget(title_label)
         
         engagement_rate = benchmark.get("engagement_rate", 0)
         rate_value = QLabel(f"{engagement_rate}%")
-        rate_value.setStyleSheet("color: #f4f8ff; font-size: 32px; font-weight: 800;")
+        rate_value.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 32px; font-weight: 800;")
         layout.addWidget(rate_value)
         
         is_passed = "达标" in benchmark.get("verdict", "") or "通过" in benchmark.get("verdict", "")
@@ -633,7 +636,7 @@ class SingleVideoPage(QWidget):
         if verdict_text:
             verdict_label = QLabel(verdict_text)
             verdict_label.setWordWrap(True)
-            verdict_label.setStyleSheet("color: #d4e0f3; font-size: 14px; line-height: 1.6;")
+            verdict_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 14px; line-height: 1.75;")
             layout.addWidget(verdict_label)
         
         return container
@@ -668,7 +671,7 @@ class SingleVideoPage(QWidget):
         container.setStyleSheet(
             f"""
             QFrame {{
-                background-color: #1a1e24;
+                background-color: {BG_PANEL};
                 border: 1px solid {BORDER};
                 border-left: 4px solid #ffd700;
                 border-radius: 16px;
@@ -685,12 +688,12 @@ class SingleVideoPage(QWidget):
         
         content_frame = QFrame()
         content_frame.setStyleSheet(
-            """
-            QFrame {
-                background-color: #141820;
+            f"""
+            QFrame {{
+                background-color: {BG_SURFACE};
                 border-left: 3px solid #ffd700;
                 border-radius: 8px;
-            }
+            }}
             """
         )
         content_layout = QVBoxLayout(content_frame)

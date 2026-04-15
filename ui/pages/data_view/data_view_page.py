@@ -20,9 +20,14 @@ from PyQt6.QtWidgets import (
 
 from core.platforms import platform_label
 from ui.components.theme import (
+    BG_PANEL,
+    BORDER,
+    DANGER,
     SUCCESS,
     TEAL,
+    TEXT_SECONDARY,
     TEXT_MUTED,
+    WARNING,
     VIOLET,
     accent_button_style,
     page_background_style,
@@ -119,7 +124,7 @@ class DataViewPage(QWidget):
 
         filter_row = QHBoxLayout()
         filter_label = QLabel(TEXT_FILTER)
-        filter_label.setStyleSheet("color: #a0aec0; font-size: 14px;")
+        filter_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 14px;")
         filter_row.addWidget(filter_label)
 
         self.influencer_menu = QMenu(self)
@@ -153,18 +158,18 @@ class DataViewPage(QWidget):
         self.stats_row = QHBoxLayout()
         self.stats_row.setSpacing(12)
         for attr, label, color in [
-            ("stat_total", TEXT_STAT_TOTAL.format(value=0), "#4299e1"),
-            ("stat_avg_play", TEXT_STAT_AVG_PLAY.format(value=0), "#48bb78"),
-            ("stat_max_play", TEXT_STAT_MAX_PLAY.format(value=0), "#ed8936"),
-            ("stat_avg_like", TEXT_STAT_AVG_LIKE.format(value=0), "#9f7aea"),
-            ("stat_avg_engage", TEXT_STAT_AVG_ENGAGE.format(value=0), "#f6ad55"),
+            ("stat_total", TEXT_STAT_TOTAL.format(value=0), "#78aee8"),
+            ("stat_avg_play", TEXT_STAT_AVG_PLAY.format(value=0), SUCCESS),
+            ("stat_max_play", TEXT_STAT_MAX_PLAY.format(value=0), "#f0bf7a"),
+            ("stat_avg_like", TEXT_STAT_AVG_LIKE.format(value=0), VIOLET),
+            ("stat_avg_engage", TEXT_STAT_AVG_ENGAGE.format(value=0), "#f3c983"),
         ]:
             lbl = QLabel(label)
             lbl.setStyleSheet(
                 f"""
-                background-color: #121c2b;
+                background-color: {BG_PANEL};
                 color: {color};
-                border: 1px solid #263a56;
+                border: 1px solid {BORDER};
                 border-radius: 12px;
                 padding: 10px 16px;
                 font-size: 13px;
@@ -355,7 +360,7 @@ class DataViewPage(QWidget):
 
             play_item = QTableWidgetItem(self._format_number(video.get("play_count", 0)))
             if (video.get("play_count") or 0) > 1_000_000:
-                play_item.setForeground(QColor("#f6ad55"))
+                play_item.setForeground(QColor(WARNING))
             self.table.setItem(row, 3, play_item)
             self.table.setItem(row, 4, QTableWidgetItem(self._format_number(video.get("like_count", 0))))
             self.table.setItem(row, 5, QTableWidgetItem(self._format_number(video.get("comment_count", 0))))
@@ -367,9 +372,9 @@ class DataViewPage(QWidget):
             if engage_rate >= 10:
                 engage_item.setForeground(QColor(SUCCESS))
             elif engage_rate >= 5:
-                engage_item.setForeground(QColor("#f6ad55"))
+                engage_item.setForeground(QColor(WARNING))
             else:
-                engage_item.setForeground(QColor("#fc8181"))
+                engage_item.setForeground(QColor(DANGER))
             self.table.setItem(row, 7, engage_item)
 
             self.table.setItem(row, 8, QTableWidgetItem(video.get("music_name") or ""))

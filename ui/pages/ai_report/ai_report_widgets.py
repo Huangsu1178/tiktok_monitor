@@ -10,7 +10,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from ui.components.theme import BG_PANEL, BORDER, card_style
+from ui.components.theme import BG_PANEL, BORDER, TEXT_MUTED, TEXT_PRIMARY, TEXT_SECONDARY, card_style
 
 
 EMPTY_ANALYSIS_TEXT = "\u6682\u65e0\u5206\u6790\u5185\u5bb9"
@@ -247,7 +247,7 @@ class StructuredContent(QWidget):
 
             label = QLabel(value)
             label.setWordWrap(True)
-            label.setStyleSheet("color: #d4e0f3; font-size: 14px; line-height: 1.75;")
+            label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 14px; line-height: 1.8;")
             layout.addWidget(label)
 
     def _build_item(self, item: _StructuredItem, accent: str) -> QWidget:
@@ -296,7 +296,7 @@ class StructuredContent(QWidget):
 
         body = QLabel(item.body or item.title or EMPTY_ANALYSIS_TEXT)
         body.setWordWrap(True)
-        body.setStyleSheet("color: #d4e0f3; font-size: 14px; line-height: 1.7;")
+        body.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 14px; line-height: 1.75;")
         text_layout.addWidget(body)
 
         layout.addLayout(text_layout, 1)
@@ -383,7 +383,7 @@ class MetricChip(QFrame):
         layout.setSpacing(4)
 
         title = QLabel(label)
-        title.setStyleSheet("color: #8fa6c9; font-size: 12px;")
+        title.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 12px;")
         layout.addWidget(title)
 
         value_label = QLabel(value)
@@ -425,13 +425,13 @@ class EmptyState(QFrame):
 
         title_label = QLabel(title)
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setStyleSheet("color: #8fa6c9; font-size: 16px; font-weight: 700;")
+        title_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 16px; font-weight: 700;")
         layout.addWidget(title_label)
 
         desc_label = QLabel(desc)
         desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         desc_label.setWordWrap(True)
-        desc_label.setStyleSheet("color: #6b8299; font-size: 13px; line-height: 1.7;")
+        desc_label.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 13px; line-height: 1.75;")
         layout.addWidget(desc_label)
 
 
@@ -454,13 +454,13 @@ class LoadingIndicator(QFrame):
 
         title_label = QLabel(title)
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setStyleSheet("color: #f4f8ff; font-size: 18px; font-weight: 700;")
+        title_label.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 18px; font-weight: 700;")
         layout.addWidget(title_label)
 
         desc_label = QLabel(desc)
         desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         desc_label.setWordWrap(True)
-        desc_label.setStyleSheet("color: #8fa6c9; font-size: 14px; line-height: 1.7;")
+        desc_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 14px; line-height: 1.75;")
         layout.addWidget(desc_label)
 
 
