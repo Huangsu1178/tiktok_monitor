@@ -39,6 +39,8 @@ from ui.theme import (
     primary_button_style,
     secondary_button_style,
     table_style,
+    table_button_style,
+    table_danger_button_style,
 )
 
 
@@ -163,12 +165,18 @@ class InfluencerPage(QWidget):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        for i in range(3, 10):
+        for i in range(3, 8):
             header.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
+        header.setMinimumSectionSize(80)
+        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Fixed)
+        header.resizeSection(8, 180)
+        header.setSectionResizeMode(9, QHeaderView.ResizeMode.Fixed)
+        header.resizeSection(9, 80)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
+        self.table.setWordWrap(True)  # 启用文本换行
         layout.addWidget(self.table)
 
     def refresh(self):
@@ -214,25 +222,25 @@ class InfluencerPage(QWidget):
 
             btn_widget = QWidget()
             btn_layout = QHBoxLayout(btn_widget)
-            btn_layout.setContentsMargins(4, 2, 4, 2)
-            btn_layout.setSpacing(6)
+            btn_layout.setContentsMargins(2, 1, 2, 1)
+            btn_layout.setSpacing(4)
 
             fetch_btn = QPushButton("立即抓取")
-            fetch_btn.setStyleSheet(secondary_button_style())
+            fetch_btn.setStyleSheet(table_button_style())
             fetch_btn.clicked.connect(lambda _, inf=influencer: self._fetch_single(inf))
             btn_layout.addWidget(fetch_btn)
 
             view_btn = QPushButton("查看数据")
-            view_btn.setStyleSheet(secondary_button_style())
+            view_btn.setStyleSheet(table_button_style())
             view_btn.clicked.connect(lambda _, inf=influencer: self._view_data(inf))
             btn_layout.addWidget(view_btn)
             self.table.setCellWidget(row, 8, btn_widget)
 
             del_btn = QPushButton("删除")
-            del_btn.setStyleSheet(danger_button_style())
+            del_btn.setStyleSheet(table_danger_button_style())
             del_btn.clicked.connect(lambda _, inf=influencer: self._delete_influencer(inf))
             self.table.setCellWidget(row, 9, del_btn)
-            self.table.setRowHeight(row, 52)
+            self.table.setRowHeight(row, 40)
 
     def _add_influencer(self):
         dialog = AddInfluencerDialog(self)

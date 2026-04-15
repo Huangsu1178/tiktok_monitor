@@ -32,6 +32,7 @@ from ui.theme import (
     page_title_style,
     secondary_button_style,
     selector_style,
+    table_button_style,
     table_style,
 )
 
@@ -186,14 +187,18 @@ class DataViewPage(QWidget):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        for index in range(3, 9):
+        for index in range(3, 8):
             header.setSectionResizeMode(index, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Fixed)
+        header.resizeSection(8, 120)
         header.setSectionResizeMode(9, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(10, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(10, QHeaderView.ResizeMode.Fixed)
+        header.resizeSection(10, 180)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
+        self.table.setWordWrap(True)  # 启用文本换行
         layout.addWidget(self.table)
 
     def set_influencer(self, influencer: dict):
@@ -375,48 +380,22 @@ class DataViewPage(QWidget):
 
             btn_widget = QWidget()
             btn_layout = QHBoxLayout(btn_widget)
-            btn_layout.setContentsMargins(4, 2, 4, 2)
+            btn_layout.setContentsMargins(2, 1, 2, 1)
             btn_layout.setSpacing(4)
 
             analyze_btn = QPushButton(TEXT_AI_ANALYZE)
-            analyze_btn.setStyleSheet(
-                f"""
-                QPushButton {{
-                    background-color: {VIOLET};
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    padding: 6px 10px;
-                    font-size: 11px;
-                    font-weight: 700;
-                }}
-                QPushButton:hover {{ background-color: #92a0ff; }}
-                """
-            )
+            analyze_btn.setStyleSheet(table_button_style())
             analyze_btn.clicked.connect(lambda _, vid=video: self._analyze_single(vid))
             btn_layout.addWidget(analyze_btn)
 
             if video.get("video_url"):
                 dl_btn = QPushButton(TEXT_DOWNLOAD)
-                dl_btn.setStyleSheet(
-                    f"""
-                    QPushButton {{
-                        background-color: {TEAL};
-                        color: white;
-                        border: none;
-                        border-radius: 8px;
-                        padding: 6px 10px;
-                        font-size: 11px;
-                        font-weight: 700;
-                    }}
-                    QPushButton:hover {{ background-color: #63d6c8; }}
-                    """
-                )
+                dl_btn.setStyleSheet(table_button_style())
                 dl_btn.clicked.connect(lambda _, vid=video: self._download_video(vid))
                 btn_layout.addWidget(dl_btn)
 
             self.table.setCellWidget(row, 10, btn_widget)
-            self.table.setRowHeight(row, 48)
+            self.table.setRowHeight(row, 36)
 
     def _get_video_influencer(self, video: dict):
         influencer = self._influencer_by_id.get(video.get("influencer_id"))
