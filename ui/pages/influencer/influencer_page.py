@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.platforms import format_account_identity, infer_platform_from_input, normalize_influencer_input, platform_label
-from ui.theme import (
+from ui.components.theme import (
     DANGER,
     SUCCESS,
     TEXT_MUTED,
@@ -278,7 +278,7 @@ class InfluencerPage(QWidget):
         self.main_window.fetch_single(influencer)
 
     def _fetch_all(self):
-        from ui.main_window import FetchWorker
+        from ui.pages.main.main_window import FetchWorker
 
         worker = FetchWorker(self.main_window.fetch_all_active)
         worker.signals.finished.connect(lambda _: self.refresh())

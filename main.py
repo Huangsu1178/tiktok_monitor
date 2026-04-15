@@ -56,7 +56,7 @@ def main():
     app.processEvents()
 
     def load_main():
-        from ui.main_window import MainWindow
+        from ui.pages.main.main_window import MainWindow
 
         window = MainWindow()
         window.show()

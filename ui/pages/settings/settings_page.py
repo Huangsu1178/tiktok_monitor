@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 
 from config import DEFAULT_AI_MODEL, sync_config_to_env, AI_CONFIG, SCRAPER_CONFIG, SCHEDULER_CONFIG
-from ui.theme import (
+from ui.components.theme import (
     SUCCESS,
     TEXT_PRIMARY,
     TEXT_SECONDARY,

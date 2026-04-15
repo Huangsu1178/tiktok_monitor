@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.platforms import platform_label
-from ui.theme import (
+from ui.components.theme import (
     SUCCESS,
     TEAL,
     TEXT_MUTED,

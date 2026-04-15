@@ -20,12 +20,12 @@ from PyQt6.QtWidgets import (
 )
 
 from config import DEFAULT_AI_MODEL
-from ui.ai_report_page import AIReportPage
-from ui.dashboard_page import DashboardPage
-from ui.data_view_page import DataViewPage
-from ui.influencer_page import InfluencerPage
-from ui.settings_page import SettingsPage
-from ui.theme import (
+from ui.pages.ai_report.ai_report_page import AIReportPage
+from ui.pages.dashboard.dashboard_page import DashboardPage
+from ui.pages.data_view.data_view_page import DataViewPage
+from ui.pages.influencer.influencer_page import InfluencerPage
+from ui.pages.settings.settings_page import SettingsPage
+from ui.components.theme import (
     ACCENT,
     SUCCESS,
     TEXT_MUTED,
