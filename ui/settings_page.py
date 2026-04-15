@@ -103,7 +103,7 @@ class SettingsPage(QWidget):
         gemini_model_label.setStyleSheet(LABEL_STYLE)
         ai_form.addRow(gemini_model_label, self.gemini_model_input)
 
-        model_hint = QLabel(f"默认使用gemini-2.0-flash。支持gemini-2.0-pro, gemini-1.5-pro等模型。")
+        model_hint = QLabel(f"默认使用gemini-2.0-flash。支持gemini-2.5-flash, gemini-2.5-pro, gemini-2.0-pro, gemini-1.5-pro等模型。")
         model_hint.setStyleSheet(HINT_STYLE)
         model_hint.setWordWrap(True)
         ai_form.addRow("", model_hint)
